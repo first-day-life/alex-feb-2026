@@ -5,6 +5,8 @@
    ═══════════════════════════════════════════════════ */
 
 // ── Demo data (used when no sheet URL is configured) ──
+const DEFAULT_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=1538474996&single=true&output=csv";
 const DEMO_DATA = [
   { url: "https://example.com", name: "Homepage", cvr: 4.2, bounce: 32, sessions: 12840 },
   { url: "https://example.com/pricing", name: "Pricing Page", cvr: 6.8, bounce: 24, sessions: 8920 },
@@ -130,13 +132,15 @@ function loadSavedSettings() {
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      if (s.sheetUrl) $("#sheet-url").value = s.sheetUrl;
+      $("#sheet-url").value = s.sheetUrl || DEFAULT_SHEET_URL;
       if (s.colUrl) $("#col-url").value = s.colUrl;
       if (s.colName) $("#col-name").value = s.colName;
       if (s.colCvr) $("#col-cvr").value = s.colCvr;
       if (s.colBounce) $("#col-bounce").value = s.colBounce;
       if (s.colSessions) $("#col-sessions").value = s.colSessions;
     } catch (_) {}
+  } else {
+    $("#sheet-url").value = DEFAULT_SHEET_URL;
   }
 }
 
@@ -170,7 +174,7 @@ async function loadData() {
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      sheetUrl = s.sheetUrl || "";
+      sheetUrl = s.sheetUrl || DEFAULT_SHEET_URL;
       if (s.colUrl) colMap.url = s.colUrl;
       if (s.colName) colMap.name = s.colName;
       if (s.colCvr) colMap.cvr = s.colCvr;
