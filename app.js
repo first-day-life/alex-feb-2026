@@ -158,7 +158,14 @@ function saveSettings() {
 async function loadData() {
   const saved = localStorage.getItem("lp-explorer-settings");
   let sheetUrl = "";
-  let colMap = { url: "Landing Page", name: "landing_page_path", cvr: "conversion_rate", bounce: "bounce_rate", sessions: "sessions" };
+  let colMap = {
+    day: "day",
+    url: "landing_page_path",
+    name: "landing_page_path",
+    cvr: "conversion_rate",
+    bounce: "bounce_rate",
+    sessions: "sessions",
+  };
 
   if (saved) {
     try {
@@ -199,27 +206,58 @@ function parseCSV(text, colMap) {
   if (lines.length < 2) return [];
 
   const headers = parseCSVLine(lines[0]);
+  const idxDay = headers.findIndex((h) => h.toLowerCase() === colMap.day.toLowerCase());
   const idxUrl = headers.findIndex((h) => h.toLowerCase() === colMap.url.toLowerCase());
   const idxName = headers.findIndex((h) => h.toLowerCase() === colMap.name.toLowerCase());
   const idxCvr = headers.findIndex((h) => h.toLowerCase() === colMap.cvr.toLowerCase());
   const idxBounce = headers.findIndex((h) => h.toLowerCase() === colMap.bounce.toLowerCase());
   const idxSessions = headers.findIndex((h) => h.toLowerCase() === colMap.sessions.toLowerCase());
 
-  const result = [];
+  const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCSVLine(lines[i]);
-    const url = idxUrl >= 0 ? cols[idxUrl] || "" : "";
-    if (!url) continue;
+    const day = idxDay >= 0 ? (cols[idxDay] || "").trim() : "";
+    const path = idxUrl >= 0 ? (cols[idxUrl] || "").trim() : "";
+    if (!path) continue;
+    if (day && day.toLowerCase() === "day") continue; // skip duplicate header rows
 
-    result.push({
-      url,
-      name: idxName >= 0 ? cols[idxName] || url : url,
+    rows.push({
+      day,
+      path,
+      name: idxName >= 0 ? (cols[idxName] || path).trim() : path,
       cvr: idxCvr >= 0 ? parseNum(cols[idxCvr]) : 0,
       bounce: idxBounce >= 0 ? parseNum(cols[idxBounce]) : 0,
       sessions: idxSessions >= 0 ? parseNum(cols[idxSessions]) : 0,
     });
   }
-  return result;
+
+  if (!rows.length) return [];
+
+  // If a day column exists, only keep the latest day
+  let latestRows = rows;
+  if (idxDay >= 0) {
+    const latestDay = rows
+      .map((r) => r.day)
+      .filter(Boolean)
+      .sort()
+      .slice(-1)[0];
+    if (latestDay) latestRows = rows.filter((r) => r.day === latestDay);
+  }
+
+  const baseUrl = "https://firstday.com";
+  return latestRows.map((r) => ({
+    url: baseUrl + normalizePath(r.path),
+    name: r.name,
+    cvr: r.cvr,
+    bounce: r.bounce,
+    sessions: r.sessions,
+  }));
+}
+
+function normalizePath(path) {
+  if (!path) return "/";
+  if (path[0] !== "/") return "/" + path;
+  return path;
 }
 
 function parseCSVLine(line) {
