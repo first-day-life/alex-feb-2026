@@ -158,7 +158,7 @@ function saveSettings() {
 async function loadData() {
   const saved = localStorage.getItem("lp-explorer-settings");
   let sheetUrl = "";
-  let colMap = { url: "Landing Page", name: "Page Title", cvr: "CVR", bounce: "Bounce Rate", sessions: "Sessions" };
+  let colMap = { url: "Landing Page", name: "landing_page_path", cvr: "conversion_rate", bounce: "bounce_rate", sessions: "sessions" };
 
   if (saved) {
     try {
