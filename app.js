@@ -321,7 +321,12 @@ function renderList() {
     li.style.animationDelay = `${i * 40}ms`;
     li.innerHTML = `
       <div class="page-card-title">${esc(page.name)}</div>
-      <div class="page-card-url">${esc(page.url)}</div>
+      <div class="page-card-url">
+        <span class="page-card-url-text">${esc(page.url)}</span>
+        <button class="page-card-open" type="button" aria-label="Open page in new tab">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M6 2H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8m-4-6h4m0 0v4m0-4L7 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
       <div class="page-card-metrics">
         <div class="metric">
           <span class="metric-value ${cvrClass(page.cvr)}">${page.cvr.toFixed(1)}%</span>
@@ -341,6 +346,13 @@ function renderList() {
       </div>
     `;
     li.addEventListener("click", () => selectPage(page, li));
+    const openBtn = li.querySelector(".page-card-open");
+    if (openBtn) {
+      openBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.open(page.url, "_blank", "noopener");
+      });
+    }
     listEl.appendChild(li);
   });
 
@@ -360,7 +372,6 @@ function selectPage(page, cardEl) {
 
   frameUrl.textContent = page.url;
   frameExternal.href = page.url;
-  window.open(page.url, "_blank", "noopener");
 
   updateComparison(page, lastFiltered);
 
