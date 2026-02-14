@@ -317,6 +317,10 @@ function renderList() {
     (p) => p.name.toLowerCase().includes(query) || p.url.toLowerCase().includes(query)
   );
 
+  const totals = aggregateForAverages(filtered);
+  const avgCvr = totals.sessions ? totals.weightedCvr : 0;
+  const avgBounce = totals.sessions ? totals.weightedBounce : 0;
+
   // Sort
   const [field, dir] = sortKey.split("-");
   filtered.sort((a, b) => {
@@ -344,11 +348,11 @@ function renderList() {
       </div>
       <div class="page-card-metrics">
         <div class="metric">
-          <span class="metric-value ${cvrClass(page.cvr)}">${page.cvr.toFixed(1)}%</span>
+          <span class="metric-value ${page.cvr >= avgCvr ? "good" : "bad"}">${page.cvr.toFixed(1)}%</span>
           <span class="metric-label">CVR</span>
         </div>
         <div class="metric">
-          <span class="metric-value ${bounceClass(page.bounce)}">${page.bounce.toFixed(0)}%</span>
+          <span class="metric-value ${page.bounce <= avgBounce ? "good" : "bad"}">${page.bounce.toFixed(0)}%</span>
           <span class="metric-label">Bounce</span>
         </div>
         <div class="metric">
@@ -434,15 +438,18 @@ function updateFunnel(page) {
 }
 
 // ── Helpers ─────────────────────────────────────────
-function cvrClass(v) {
-  if (v >= 5) return "good";
-  if (v >= 2) return "ok";
-  return "bad";
-}
-function bounceClass(v) {
-  if (v <= 30) return "good";
-  if (v <= 50) return "ok";
-  return "bad";
+function aggregateForAverages(items) {
+  if (!items.length) {
+    return { sessions: 0, weightedCvr: 0, weightedBounce: 0 };
+  }
+  const sessions = items.reduce((s, p) => s + p.sessions, 0);
+  const weightedCvr = sessions
+    ? items.reduce((s, p) => s + p.cvr * p.sessions, 0) / sessions
+    : 0;
+  const weightedBounce = sessions
+    ? items.reduce((s, p) => s + p.bounce * p.sessions, 0) / sessions
+    : 0;
+  return { sessions, weightedCvr, weightedBounce };
 }
 function fmtNum(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
