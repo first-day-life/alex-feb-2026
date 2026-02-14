@@ -407,7 +407,11 @@ function updateSummary(filtered) {
   const weightedCvr = totalSess
     ? filtered.reduce((s, p) => s + p.cvr * p.sessions, 0) / totalSess
     : 0;
+  const weightedBounce = totalSess
+    ? filtered.reduce((s, p) => s + p.bounce * p.sessions, 0) / totalSess
+    : 0;
   $("#avg-cvr").textContent = weightedCvr.toFixed(1) + "%";
+  $("#avg-bounce").textContent = weightedBounce.toFixed(1) + "%";
   $("#total-sessions").textContent = fmtNum(totalSess);
 }
 
