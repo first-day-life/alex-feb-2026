@@ -302,6 +302,13 @@ ul { list-style: none; }
   position: relative;
 }
 
+#preview-frame-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 /* Empty state */
 #preview-empty {
   flex: 1; display: grid; place-items: center;
@@ -391,7 +398,7 @@ ul { list-style: none; }
 #frame-container {
   flex: 1;
   display: grid;
-  overflow: auto;
+  overflow-y: auto;
   padding: 20px;
   background: var(--bg);
 }
