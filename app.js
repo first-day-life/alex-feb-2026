@@ -217,8 +217,8 @@ function parseCSV(text, colMap) {
       day,
       path,
       name: idxName >= 0 ? (cols[idxName] || path).trim() : path,
-      cvr: idxCvr >= 0 ? parseNum(cols[idxCvr]) : 0,
-      bounce: idxBounce >= 0 ? parseNum(cols[idxBounce]) : 0,
+      cvr: idxCvr >= 0 ? normalizeRate(parseNum(cols[idxCvr])) : 0,
+      bounce: idxBounce >= 0 ? normalizeRate(parseNum(cols[idxBounce])) : 0,
       sessions: idxSessions >= 0 ? parseNum(cols[idxSessions]) : 0,
     });
   }
@@ -285,6 +285,12 @@ function parseCSVLine(line) {
 function parseNum(str) {
   if (!str) return 0;
   return parseFloat(str.replace(/[%,]/g, "")) || 0;
+}
+
+function normalizeRate(v) {
+  // Treat 0-1 values as fractions; convert to percent
+  if (v > 0 && v <= 1) return v * 100;
+  return v;
 }
 
 // ── Render list ─────────────────────────────────────
