@@ -391,7 +391,7 @@ function selectPage(page, cardEl) {
   frameUrl.textContent = page.url;
   frameExternal.href = page.url;
 
-  updateFunnel(page);
+  updateFunnel(page, lastFiltered);
 
   // On mobile, close sidebar after selection
   if (window.innerWidth <= 768) {
@@ -415,7 +415,7 @@ function updateSummary(filtered) {
   $("#total-sessions").textContent = fmtNum(totalSess);
 }
 
-function updateFunnel(page) {
+function updateFunnel(page, filtered) {
   const sessions = page.sessions || 0;
   const atcPct = clampRate(page.addedToCartRate || 0);
   const reachPct = clampRate(page.reachedCheckoutRate || 0);
@@ -434,11 +434,13 @@ function updateFunnel(page) {
   $("#funnel-sessions").textContent = fmtNum(sessions);
   $("#funnel-completed-sessions").textContent = fmtNum(completedSessions);
 
-  setFunnelStep("sessions", 100, sessions);
-  setFunnelStep("nonbounce", nonBouncePct, nonBounceSessions, sessions);
-  setFunnelStep("added", atcPct, addedSessions, nonBounceSessions);
-  setFunnelStep("reached", reachPct, reachedSessions, addedSessions);
-  setFunnelStep("completed", completedPct, completedSessions, reachedSessions);
+  const avg = computeFunnelAverages(filtered);
+
+  setFunnelStep("sessions", 100, sessions, null, 100);
+  setFunnelStep("nonbounce", nonBouncePct, nonBounceSessions, sessions, avg.nonBouncePct);
+  setFunnelStep("added", atcPct, addedSessions, nonBounceSessions, avg.addedPct);
+  setFunnelStep("reached", reachPct, reachedSessions, addedSessions, avg.reachedPct);
+  setFunnelStep("completed", completedPct, completedSessions, reachedSessions, avg.completedPct);
 }
 
 // ── Helpers ─────────────────────────────────────────
@@ -466,8 +468,11 @@ function esc(str) {
   return d.innerHTML;
 }
 
-function setFunnelStep(key, pct, count, prevCount = null) {
+function setFunnelStep(key, pct, count, prevCount = null, avgPct = null) {
   $(`#funnel-${key}-pct`).textContent = pct.toFixed(1) + "%";
+  if (avgPct !== null) {
+    $(`#funnel-${key}-avg`).textContent = `(vs avg ${avgPct.toFixed(1)}%)`;
+  }
   $(`#funnel-${key}-count`).textContent = fmtNum(count);
   $(`#funnel-${key}-bar`).style.width = `${Math.max(2, Math.min(100, pct))}%`;
 
@@ -487,6 +492,22 @@ function clampRate(v) {
   if (Number.isNaN(v) || v < 0) return 0;
   if (v > 100) return 100;
   return v;
+}
+
+function computeFunnelAverages(items) {
+  if (!items || !items.length) {
+    return { nonBouncePct: 0, addedPct: 0, reachedPct: 0, completedPct: 0 };
+  }
+  const sessions = items.reduce((s, p) => s + p.sessions, 0);
+  if (!sessions) {
+    return { nonBouncePct: 0, addedPct: 0, reachedPct: 0, completedPct: 0 };
+  }
+  const weighted = (fn) => items.reduce((s, p) => s + fn(p) * p.sessions, 0) / sessions;
+  const nonBouncePct = weighted((p) => clampRate(100 - (p.bounce || 0)));
+  const addedPct = weighted((p) => clampRate(p.addedToCartRate || 0));
+  const reachedPct = weighted((p) => clampRate(p.reachedCheckoutRate || 0));
+  const completedPct = weighted((p) => clampRate(p.completedCheckoutRate || 0));
+  return { nonBouncePct, addedPct, reachedPct, completedPct };
 }
 
 // ── Toast ───────────────────────────────────────────

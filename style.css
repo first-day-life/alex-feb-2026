@@ -481,10 +481,15 @@ ul { list-style: none; }
   justify-content: space-between;
   font-size: 12px;
   color: var(--text2);
+  gap: 10px;
 }
 .funnel-step-pct {
   color: var(--text);
   font-weight: 600;
+}
+.funnel-step-avg {
+  color: var(--text2);
+  white-space: nowrap;
 }
 .funnel-step-dropoff {
   display: flex;
