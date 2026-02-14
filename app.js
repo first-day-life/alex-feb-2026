@@ -63,7 +63,7 @@ const PASSWORD = "fdparty";
 // ── State ───────────────────────────────────────────
 let pages = [];
 let activePage = null;
-let currentDevice = "desktop";
+let lastFiltered = [];
 
 // ── DOM refs ────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -73,10 +73,8 @@ const searchEl = $("#search");
 const sortEl = $("#sort-select");
 const previewEmpty = $("#preview-empty");
 const previewWrap = $("#preview-frame-wrap");
-const iframe = $("#preview-iframe");
 const frameUrl = $("#frame-url");
 const frameExternal = $("#frame-external");
-const frameContainer = $("#frame-container");
 const settingsModal = $("#settings-modal");
 
 // ── Init ────────────────────────────────────────────
@@ -105,16 +103,6 @@ function bindEvents() {
   $("#settings-cancel").addEventListener("click", () => settingsModal.classList.add("hidden"));
   $(".modal-backdrop").addEventListener("click", () => settingsModal.classList.add("hidden"));
   $("#settings-save").addEventListener("click", saveSettings);
-
-  // Device buttons
-  document.querySelectorAll(".device-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".device-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentDevice = btn.dataset.device;
-      frameContainer.className = `device-${currentDevice}`;
-    });
-  });
 
   // Keyboard nav
   document.addEventListener("keydown", (e) => {
@@ -320,6 +308,7 @@ function renderList() {
   const maxSessions = Math.max(...filtered.map((p) => p.sessions), 1);
 
   listEl.innerHTML = "";
+  lastFiltered = filtered;
   filtered.forEach((page, i) => {
     const li = document.createElement("li");
     li.className = `page-card${activePage && activePage.url === page.url ? " active" : ""}`;
@@ -363,26 +352,11 @@ function selectPage(page, cardEl) {
   previewEmpty.classList.add("hidden");
   previewWrap.classList.remove("hidden");
 
-  // Add loading overlay
-  let overlay = frameContainer.querySelector(".loading-overlay");
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.className = "loading-overlay";
-    overlay.innerHTML = '<div class="spinner"></div>';
-    frameContainer.appendChild(overlay);
-  }
-  overlay.style.opacity = "1";
-  overlay.style.display = "grid";
-
-  // Load iframe
-  iframe.src = page.url;
   frameUrl.textContent = page.url;
   frameExternal.href = page.url;
+  window.open(page.url, "_blank", "noopener");
 
-  iframe.onload = () => {
-    overlay.style.opacity = "0";
-    setTimeout(() => (overlay.style.display = "none"), 300);
-  };
+  updateComparison(page, lastFiltered);
 
   // On mobile, close sidebar after selection
   if (window.innerWidth <= 768) {
@@ -398,6 +372,22 @@ function updateSummary(filtered) {
   $("#avg-cvr").textContent = avgCvr.toFixed(1) + "%";
   const totalSess = filtered.reduce((s, p) => s + p.sessions, 0);
   $("#total-sessions").textContent = fmtNum(totalSess);
+}
+
+function updateComparison(selected, filtered) {
+  const others = filtered.filter((p) => p.url !== selected.url);
+  const agg = aggregatePages(others);
+
+  $("#compare-selected-name").textContent = selected.name;
+  $("#compare-selected-url").textContent = selected.url;
+  $("#compare-selected-cvr").textContent = selected.cvr.toFixed(1) + "%";
+  $("#compare-selected-bounce").textContent = selected.bounce.toFixed(0) + "%";
+  $("#compare-selected-sessions").textContent = fmtNum(selected.sessions);
+
+  $("#compare-other-count").textContent = `${agg.count} ${agg.count === 1 ? "page" : "pages"}`;
+  $("#compare-other-cvr").textContent = agg.weightedCvr.toFixed(1) + "%";
+  $("#compare-other-bounce").textContent = agg.weightedBounce.toFixed(0) + "%";
+  $("#compare-other-sessions").textContent = fmtNum(agg.sessions);
 }
 
 // ── Helpers ─────────────────────────────────────────
@@ -420,6 +410,20 @@ function esc(str) {
   const d = document.createElement("div");
   d.textContent = str;
   return d.innerHTML;
+}
+
+function aggregatePages(items) {
+  if (!items.length) {
+    return { count: 0, sessions: 0, weightedCvr: 0, weightedBounce: 0 };
+  }
+  const sessions = items.reduce((s, p) => s + p.sessions, 0);
+  const weightedCvr = sessions
+    ? items.reduce((s, p) => s + p.cvr * p.sessions, 0) / sessions
+    : 0;
+  const weightedBounce = sessions
+    ? items.reduce((s, p) => s + p.bounce * p.sessions, 0) / sessions
+    : 0;
+  return { count: items.length, sessions, weightedCvr, weightedBounce };
 }
 
 // ── Toast ───────────────────────────────────────────
