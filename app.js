@@ -157,6 +157,10 @@ async function loadData() {
     cvr: "conversion_rate",
     bounce: "bounce_rate",
     sessions: "sessions",
+    addedToCart: "added_to_cart_rate",
+    reachedCheckout: "reached_checkout_rate",
+    completedCheckout: "completed_checkout_rate",
+    sessionsCompleted: "sessions_that_completed_checkout",
   };
 
   if (saved) {
@@ -204,6 +208,10 @@ function parseCSV(text, colMap) {
   const idxCvr = headers.findIndex((h) => h.toLowerCase() === colMap.cvr.toLowerCase());
   const idxBounce = headers.findIndex((h) => h.toLowerCase() === colMap.bounce.toLowerCase());
   const idxSessions = headers.findIndex((h) => h.toLowerCase() === colMap.sessions.toLowerCase());
+  const idxAddedToCart = headers.findIndex((h) => h.toLowerCase() === colMap.addedToCart.toLowerCase());
+  const idxReachedCheckout = headers.findIndex((h) => h.toLowerCase() === colMap.reachedCheckout.toLowerCase());
+  const idxCompletedCheckout = headers.findIndex((h) => h.toLowerCase() === colMap.completedCheckout.toLowerCase());
+  const idxSessionsCompleted = headers.findIndex((h) => h.toLowerCase() === colMap.sessionsCompleted.toLowerCase());
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
@@ -220,6 +228,10 @@ function parseCSV(text, colMap) {
       cvr: idxCvr >= 0 ? normalizeRate(parseNum(cols[idxCvr])) : 0,
       bounce: idxBounce >= 0 ? normalizeRate(parseNum(cols[idxBounce])) : 0,
       sessions: idxSessions >= 0 ? parseNum(cols[idxSessions]) : 0,
+      addedToCartRate: idxAddedToCart >= 0 ? normalizeRate(parseNum(cols[idxAddedToCart])) : 0,
+      reachedCheckoutRate: idxReachedCheckout >= 0 ? normalizeRate(parseNum(cols[idxReachedCheckout])) : 0,
+      completedCheckoutRate: idxCompletedCheckout >= 0 ? normalizeRate(parseNum(cols[idxCompletedCheckout])) : 0,
+      sessionsCompleted: idxSessionsCompleted >= 0 ? parseNum(cols[idxSessionsCompleted]) : 0,
     });
   }
 
@@ -243,6 +255,10 @@ function parseCSV(text, colMap) {
     cvr: r.cvr,
     bounce: r.bounce,
     sessions: r.sessions,
+    addedToCartRate: r.addedToCartRate,
+    reachedCheckoutRate: r.reachedCheckoutRate,
+    completedCheckoutRate: r.completedCheckoutRate,
+    sessionsCompleted: r.sessionsCompleted,
   }));
 }
 
@@ -373,7 +389,7 @@ function selectPage(page, cardEl) {
   frameUrl.textContent = page.url;
   frameExternal.href = page.url;
 
-  updateComparison(page, lastFiltered);
+  updateFunnel(page);
 
   // On mobile, close sidebar after selection
   if (window.innerWidth <= 768) {
@@ -391,20 +407,25 @@ function updateSummary(filtered) {
   $("#total-sessions").textContent = fmtNum(totalSess);
 }
 
-function updateComparison(selected, filtered) {
-  const others = filtered.filter((p) => p.url !== selected.url);
-  const agg = aggregatePages(others);
+function updateFunnel(page) {
+  const sessions = page.sessions || 0;
+  const atcPct = clampRate(page.addedToCartRate || 0);
+  const reachPct = clampRate(page.reachedCheckoutRate || 0);
+  const completedPct = clampRate(page.completedCheckoutRate || 0);
+  const completedSessions = page.sessionsCompleted > 0
+    ? page.sessionsCompleted
+    : Math.round(sessions * (completedPct / 100));
 
-  $("#compare-selected-name").textContent = selected.name;
-  $("#compare-selected-url").textContent = selected.url;
-  $("#compare-selected-cvr").textContent = selected.cvr.toFixed(1) + "%";
-  $("#compare-selected-bounce").textContent = selected.bounce.toFixed(0) + "%";
-  $("#compare-selected-sessions").textContent = fmtNum(selected.sessions);
+  $("#funnel-page-name").textContent = page.name;
+  $("#funnel-page-url").textContent = page.url;
+  $("#funnel-cvr").textContent = page.cvr.toFixed(1) + "%";
+  $("#funnel-sessions").textContent = fmtNum(sessions);
+  $("#funnel-completed-sessions").textContent = fmtNum(completedSessions);
 
-  $("#compare-other-count").textContent = `${agg.count} ${agg.count === 1 ? "page" : "pages"}`;
-  $("#compare-other-cvr").textContent = agg.weightedCvr.toFixed(1) + "%";
-  $("#compare-other-bounce").textContent = agg.weightedBounce.toFixed(0) + "%";
-  $("#compare-other-sessions").textContent = fmtNum(agg.sessions);
+  setFunnelStep("sessions", 100, sessions);
+  setFunnelStep("added", atcPct, Math.round(sessions * (atcPct / 100)));
+  setFunnelStep("reached", reachPct, Math.round(sessions * (reachPct / 100)));
+  setFunnelStep("completed", completedPct, completedSessions);
 }
 
 // ── Helpers ─────────────────────────────────────────
@@ -429,18 +450,16 @@ function esc(str) {
   return d.innerHTML;
 }
 
-function aggregatePages(items) {
-  if (!items.length) {
-    return { count: 0, sessions: 0, weightedCvr: 0, weightedBounce: 0 };
-  }
-  const sessions = items.reduce((s, p) => s + p.sessions, 0);
-  const weightedCvr = sessions
-    ? items.reduce((s, p) => s + p.cvr * p.sessions, 0) / sessions
-    : 0;
-  const weightedBounce = sessions
-    ? items.reduce((s, p) => s + p.bounce * p.sessions, 0) / sessions
-    : 0;
-  return { count: items.length, sessions, weightedCvr, weightedBounce };
+function setFunnelStep(key, pct, count) {
+  $(`#funnel-${key}-pct`).textContent = pct.toFixed(1) + "%";
+  $(`#funnel-${key}-count`).textContent = fmtNum(count);
+  $(`#funnel-${key}-bar`).style.width = `${Math.max(2, Math.min(100, pct))}%`;
+}
+
+function clampRate(v) {
+  if (Number.isNaN(v) || v < 0) return 0;
+  if (v > 100) return 100;
+  return v;
 }
 
 // ── Toast ───────────────────────────────────────────

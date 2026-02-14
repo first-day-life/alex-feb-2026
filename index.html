@@ -125,41 +125,71 @@
             <div class="frame-toolbar-note">Opens in a new tab</div>
           </div>
           <div id="frame-container">
-            <div id="comparison-grid">
-              <div class="compare-card">
-                <div class="compare-title">Selected Page</div>
-                <div class="compare-name" id="compare-selected-name">—</div>
-                <div class="compare-url" id="compare-selected-url">—</div>
-                <div class="compare-metrics">
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-selected-cvr">0.0%</span>
-                    <span class="compare-label">CVR</span>
+            <div id="funnel">
+              <div class="funnel-header">
+                <div class="funnel-title">Purchase Funnel</div>
+                <div class="funnel-page">
+                  <div class="funnel-page-name" id="funnel-page-name">—</div>
+                  <div class="funnel-page-url" id="funnel-page-url">—</div>
+                </div>
+                <div class="funnel-kpis">
+                  <div class="funnel-kpi">
+                    <span class="funnel-kpi-value" id="funnel-cvr">0.0%</span>
+                    <span class="funnel-kpi-label">Conversion Rate</span>
                   </div>
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-selected-bounce">0%</span>
-                    <span class="compare-label">Bounce</span>
+                  <div class="funnel-kpi">
+                    <span class="funnel-kpi-value" id="funnel-sessions">0</span>
+                    <span class="funnel-kpi-label">Sessions</span>
                   </div>
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-selected-sessions">0</span>
-                    <span class="compare-label">Sessions</span>
+                  <div class="funnel-kpi">
+                    <span class="funnel-kpi-value" id="funnel-completed-sessions">0</span>
+                    <span class="funnel-kpi-label">Completed</span>
                   </div>
                 </div>
               </div>
-              <div class="compare-card compare-card-alt">
-                <div class="compare-title">All Other Pages</div>
-                <div class="compare-sub" id="compare-other-count">0 pages</div>
-                <div class="compare-metrics">
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-other-cvr">0.0%</span>
-                    <span class="compare-label">Weighted CVR</span>
+
+              <div class="funnel-steps">
+                <div class="funnel-step">
+                  <div class="funnel-step-label">Sessions</div>
+                  <div class="funnel-step-metrics">
+                    <span class="funnel-step-pct" id="funnel-sessions-pct">100.0%</span>
+                    <span class="funnel-step-count" id="funnel-sessions-count">0</span>
                   </div>
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-other-bounce">0%</span>
-                    <span class="compare-label">Weighted Bounce</span>
+                  <div class="funnel-step-bar">
+                    <div class="funnel-step-bar-fill" id="funnel-sessions-bar" style="width: 100%"></div>
                   </div>
-                  <div class="compare-metric">
-                    <span class="compare-value" id="compare-other-sessions">0</span>
-                    <span class="compare-label">Total Sessions</span>
+                </div>
+
+                <div class="funnel-step">
+                  <div class="funnel-step-label">Added to Cart</div>
+                  <div class="funnel-step-metrics">
+                    <span class="funnel-step-pct" id="funnel-added-pct">0.0%</span>
+                    <span class="funnel-step-count" id="funnel-added-count">0</span>
+                  </div>
+                  <div class="funnel-step-bar">
+                    <div class="funnel-step-bar-fill" id="funnel-added-bar"></div>
+                  </div>
+                </div>
+
+                <div class="funnel-step">
+                  <div class="funnel-step-label">Reached Checkout</div>
+                  <div class="funnel-step-metrics">
+                    <span class="funnel-step-pct" id="funnel-reached-pct">0.0%</span>
+                    <span class="funnel-step-count" id="funnel-reached-count">0</span>
+                  </div>
+                  <div class="funnel-step-bar">
+                    <div class="funnel-step-bar-fill" id="funnel-reached-bar"></div>
+                  </div>
+                </div>
+
+                <div class="funnel-step">
+                  <div class="funnel-step-label">Completed Checkout</div>
+                  <div class="funnel-step-metrics">
+                    <span class="funnel-step-pct" id="funnel-completed-pct">0.0%</span>
+                    <span class="funnel-step-count" id="funnel-completed-count">0</span>
+                  </div>
+                  <div class="funnel-step-bar">
+                    <div class="funnel-step-bar-fill" id="funnel-completed-bar"></div>
                   </div>
                 </div>
               </div>

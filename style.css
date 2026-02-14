@@ -396,72 +396,102 @@ ul { list-style: none; }
   background: var(--bg);
 }
 
-/* Comparison view */
-#comparison-grid {
+/* Funnel view */
+#funnel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
-.compare-card {
+.funnel-header {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.25);
   display: grid;
-  gap: 10px;
-  min-height: 240px;
+  gap: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
 }
-.compare-card-alt {
-  background: linear-gradient(135deg, rgba(145,114,255,.15), rgba(94,208,255,.08));
-  border-color: rgba(130,110,255,.35);
-}
-.compare-title {
+.funnel-title {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: .08em;
   color: var(--text2);
 }
-.compare-name {
-  font-size: 18px;
+.funnel-page-name {
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
 }
-.compare-url {
+.funnel-page-url {
   font-size: 12px;
   color: var(--text2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.compare-sub {
-  font-size: 12px;
-  color: var(--text2);
-}
-.compare-metrics {
+.funnel-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 6px;
 }
-.compare-metric {
+.funnel-kpi {
   background: var(--surface2);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
   display: grid;
   gap: 4px;
 }
-.compare-value {
+.funnel-kpi-value {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
 }
-.compare-label {
+.funnel-kpi-label {
   font-size: 11px;
   color: var(--text2);
   text-transform: uppercase;
   letter-spacing: .06em;
+}
+.funnel-steps {
+  display: grid;
+  gap: 12px;
+}
+.funnel-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+.funnel-step-label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+.funnel-step-metrics {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text2);
+}
+.funnel-step-pct {
+  color: var(--text);
+  font-weight: 600;
+}
+.funnel-step-bar {
+  height: 10px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.funnel-step-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: inherit;
+  width: 2%;
+  transition: width .3s ease;
 }
 
 /* ── Settings modal ──────────────────────────────── */
@@ -601,7 +631,7 @@ ul { list-style: none; }
   .sort-group { display: none; }
   #frame-container { padding: 8px; }
   .frame-url-bar { font-size: 11px; }
-  #comparison-grid { grid-template-columns: 1fr; }
+  .funnel-kpis { grid-template-columns: 1fr; }
   .modal-content { padding: 20px; }
   .mapping-grid { grid-template-columns: 1fr; }
 }
