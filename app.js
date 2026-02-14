@@ -401,9 +401,11 @@ function selectPage(page, cardEl) {
 // ── Summary ─────────────────────────────────────────
 function updateSummary(filtered) {
   $("#total-pages").textContent = filtered.length;
-  const avgCvr = filtered.length ? filtered.reduce((s, p) => s + p.cvr, 0) / filtered.length : 0;
-  $("#avg-cvr").textContent = avgCvr.toFixed(1) + "%";
   const totalSess = filtered.reduce((s, p) => s + p.sessions, 0);
+  const weightedCvr = totalSess
+    ? filtered.reduce((s, p) => s + p.cvr * p.sessions, 0) / totalSess
+    : 0;
+  $("#avg-cvr").textContent = weightedCvr.toFixed(1) + "%";
   $("#total-sessions").textContent = fmtNum(totalSess);
 }
 
@@ -415,6 +417,8 @@ function updateFunnel(page) {
   const completedSessions = page.sessionsCompleted > 0
     ? page.sessionsCompleted
     : Math.round(sessions * (completedPct / 100));
+  const addedSessions = Math.round(sessions * (atcPct / 100));
+  const reachedSessions = Math.round(sessions * (reachPct / 100));
 
   $("#funnel-page-name").textContent = page.name;
   $("#funnel-page-url").textContent = page.url;
@@ -423,9 +427,9 @@ function updateFunnel(page) {
   $("#funnel-completed-sessions").textContent = fmtNum(completedSessions);
 
   setFunnelStep("sessions", 100, sessions);
-  setFunnelStep("added", atcPct, Math.round(sessions * (atcPct / 100)));
-  setFunnelStep("reached", reachPct, Math.round(sessions * (reachPct / 100)));
-  setFunnelStep("completed", completedPct, completedSessions);
+  setFunnelStep("added", atcPct, addedSessions, sessions);
+  setFunnelStep("reached", reachPct, reachedSessions, addedSessions);
+  setFunnelStep("completed", completedPct, completedSessions, reachedSessions);
 }
 
 // ── Helpers ─────────────────────────────────────────
@@ -450,10 +454,21 @@ function esc(str) {
   return d.innerHTML;
 }
 
-function setFunnelStep(key, pct, count) {
+function setFunnelStep(key, pct, count, prevCount = null) {
   $(`#funnel-${key}-pct`).textContent = pct.toFixed(1) + "%";
   $(`#funnel-${key}-count`).textContent = fmtNum(count);
   $(`#funnel-${key}-bar`).style.width = `${Math.max(2, Math.min(100, pct))}%`;
+
+  const dropEl = document.querySelector(`#funnel-${key}-dropoff`);
+  if (dropEl) {
+    if (prevCount === null) {
+      dropEl.textContent = "—";
+    } else {
+      const drop = Math.max(0, prevCount - count);
+      const dropPct = prevCount > 0 ? (drop / prevCount) * 100 : 0;
+      dropEl.textContent = `${fmtNum(drop)} (${dropPct.toFixed(1)}%)`;
+    }
+  }
 }
 
 function clampRate(v) {

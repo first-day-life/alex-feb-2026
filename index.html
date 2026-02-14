@@ -15,7 +15,7 @@
       <div class="lock-icon">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="8" y="18" width="24" height="18" rx="3" stroke="currentColor" stroke-width="2.5"/><path d="M14 18v-5a6 6 0 1 1 12 0v5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="20" cy="28" r="2.5" fill="currentColor"/></svg>
       </div>
-      <h2>LP Explorer</h2>
+      <h2>Meta LPs Explorer</h2>
       <p>Enter the password to continue</p>
       <form id="lock-form" autocomplete="off">
         <input type="password" id="lock-input" placeholder="Password" autofocus>
@@ -32,7 +32,7 @@
         <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle sidebar">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect y="3" width="20" height="2" rx="1" fill="currentColor"/><rect y="9" width="20" height="2" rx="1" fill="currentColor"/><rect y="15" width="20" height="2" rx="1" fill="currentColor"/></svg>
         </button>
-        <h1 class="logo">LP Explorer</h1>
+        <h1 class="logo">Meta LPs Explorer</h1>
       </div>
       <div class="header-center">
         <div class="search-box">
@@ -108,9 +108,9 @@
       <section id="preview-area">
         <div id="preview-empty">
           <div class="empty-state">
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="12" width="48" height="40" rx="4" stroke="currentColor" stroke-width="2.5"/><line x1="8" y1="22" x2="56" y2="22" stroke="currentColor" stroke-width="2.5"/><circle cx="14" cy="17" r="2" fill="currentColor"/><circle cx="20" cy="17" r="2" fill="currentColor"/><circle cx="26" cy="17" r="2" fill="currentColor"/></svg>
-            <h2>Pick a landing page</h2>
-            <p>Select a page from the sidebar to preview it here.</p>
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><path d="M10 50h44M16 42h32M22 34h20M28 26h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            <h2>Purchase Funnel</h2>
+            <p>Select a landing page to populate the funnel.</p>
           </div>
         </div>
         <div id="preview-frame-wrap" class="hidden">
@@ -166,6 +166,10 @@
                     <span class="funnel-step-pct" id="funnel-added-pct">0.0%</span>
                     <span class="funnel-step-count" id="funnel-added-count">0</span>
                   </div>
+                  <div class="funnel-step-dropoff">
+                    <span class="funnel-step-dropoff-label">Drop-off</span>
+                    <span class="funnel-step-dropoff-value" id="funnel-added-dropoff">0 (0.0%)</span>
+                  </div>
                   <div class="funnel-step-bar">
                     <div class="funnel-step-bar-fill" id="funnel-added-bar"></div>
                   </div>
@@ -177,6 +181,10 @@
                     <span class="funnel-step-pct" id="funnel-reached-pct">0.0%</span>
                     <span class="funnel-step-count" id="funnel-reached-count">0</span>
                   </div>
+                  <div class="funnel-step-dropoff">
+                    <span class="funnel-step-dropoff-label">Drop-off</span>
+                    <span class="funnel-step-dropoff-value" id="funnel-reached-dropoff">0 (0.0%)</span>
+                  </div>
                   <div class="funnel-step-bar">
                     <div class="funnel-step-bar-fill" id="funnel-reached-bar"></div>
                   </div>
@@ -187,6 +195,10 @@
                   <div class="funnel-step-metrics">
                     <span class="funnel-step-pct" id="funnel-completed-pct">0.0%</span>
                     <span class="funnel-step-count" id="funnel-completed-count">0</span>
+                  </div>
+                  <div class="funnel-step-dropoff">
+                    <span class="funnel-step-dropoff-label">Drop-off</span>
+                    <span class="funnel-step-dropoff-value" id="funnel-completed-dropoff">0 (0.0%)</span>
                   </div>
                   <div class="funnel-step-bar">
                     <div class="funnel-step-bar-fill" id="funnel-completed-bar"></div>
