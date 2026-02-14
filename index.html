@@ -106,13 +106,6 @@
 
       <!-- Preview area -->
       <section id="preview-area">
-        <div id="preview-empty">
-          <div class="empty-state">
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><path d="M10 50h44M16 42h32M22 34h20M28 26h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-            <h2>Purchase Funnel</h2>
-            <p>Select a landing page to populate the funnel.</p>
-          </div>
-        </div>
         <div id="preview-frame-wrap" class="hidden">
           <div id="frame-toolbar">
             <div class="frame-url-bar">
@@ -157,6 +150,21 @@
                   </div>
                   <div class="funnel-step-bar">
                     <div class="funnel-step-bar-fill" id="funnel-sessions-bar" style="width: 100%"></div>
+                  </div>
+                </div>
+
+                <div class="funnel-step">
+                  <div class="funnel-step-label">Did Not Bounce</div>
+                  <div class="funnel-step-metrics">
+                    <span class="funnel-step-pct" id="funnel-nonbounce-pct">0.0%</span>
+                    <span class="funnel-step-count" id="funnel-nonbounce-count">0</span>
+                  </div>
+                  <div class="funnel-step-dropoff">
+                    <span class="funnel-step-dropoff-label">Drop-off</span>
+                    <span class="funnel-step-dropoff-value" id="funnel-nonbounce-dropoff">0 (0.0%)</span>
+                  </div>
+                  <div class="funnel-step-bar">
+                    <div class="funnel-step-bar-fill" id="funnel-nonbounce-bar"></div>
                   </div>
                 </div>
 

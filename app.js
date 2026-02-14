@@ -71,7 +71,6 @@ const sidebarEl = $("#sidebar");
 const listEl = $("#page-list");
 const searchEl = $("#search");
 const sortEl = $("#sort-select");
-const previewEmpty = $("#preview-empty");
 const previewWrap = $("#preview-frame-wrap");
 const frameUrl = $("#frame-url");
 const frameExternal = $("#frame-external");
@@ -382,8 +381,7 @@ function selectPage(page, cardEl) {
   document.querySelectorAll(".page-card").forEach((c) => c.classList.remove("active"));
   cardEl.classList.add("active");
 
-  // Show preview
-  previewEmpty.classList.add("hidden");
+  // Show funnel
   previewWrap.classList.remove("hidden");
 
   frameUrl.textContent = page.url;
@@ -414,9 +412,11 @@ function updateFunnel(page) {
   const atcPct = clampRate(page.addedToCartRate || 0);
   const reachPct = clampRate(page.reachedCheckoutRate || 0);
   const completedPct = clampRate(page.completedCheckoutRate || 0);
+  const nonBouncePct = clampRate(100 - (page.bounce || 0));
   const completedSessions = page.sessionsCompleted > 0
     ? page.sessionsCompleted
     : Math.round(sessions * (completedPct / 100));
+  const nonBounceSessions = Math.round(sessions * (nonBouncePct / 100));
   const addedSessions = Math.round(sessions * (atcPct / 100));
   const reachedSessions = Math.round(sessions * (reachPct / 100));
 
@@ -427,7 +427,8 @@ function updateFunnel(page) {
   $("#funnel-completed-sessions").textContent = fmtNum(completedSessions);
 
   setFunnelStep("sessions", 100, sessions);
-  setFunnelStep("added", atcPct, addedSessions, sessions);
+  setFunnelStep("nonbounce", nonBouncePct, nonBounceSessions, sessions);
+  setFunnelStep("added", atcPct, addedSessions, nonBounceSessions);
   setFunnelStep("reached", reachPct, reachedSessions, addedSessions);
   setFunnelStep("completed", completedPct, completedSessions, reachedSessions);
 }
