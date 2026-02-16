@@ -6,7 +6,7 @@
 
 // ── Demo data (used when no sheet URL is configured) ──
 const DEFAULT_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=592398799&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=285495010&single=true&output=csv";
 const DEMO_DATA = [
   { url: "https://example.com", name: "Homepage", cvr: 4.2, bounce: 32, sessions: 12840 },
   { url: "https://example.com/pricing", name: "Pricing Page", cvr: 6.8, bounce: 24, sessions: 8920 },
