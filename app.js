@@ -31,6 +31,7 @@ const PASSWORD = "fdparty";
       sessionStorage.setItem("lp-authed", "1");
       lockScreen.classList.add("hidden");
       app.classList.remove("hidden");
+      loadData();
     } else {
       lockError.classList.remove("hidden");
       const card = document.querySelector(".lock-card");
@@ -65,7 +66,9 @@ const loadingMessage = $("#loading-message");
 document.addEventListener("DOMContentLoaded", () => {
   loadSavedSettings();
   bindEvents();
-  loadData();
+  if (sessionStorage.getItem("lp-authed") === "1") {
+    loadData();
+  }
 });
 
 // ── Events ──────────────────────────────────────────
