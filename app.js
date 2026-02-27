@@ -137,7 +137,7 @@ async function loadData() {
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
-  let sheetUrl = "";
+  let sheetUrl = DEFAULT_SHEET_URL;
   let colMap = {
     day: "day",
     url: "landing_page_path",
