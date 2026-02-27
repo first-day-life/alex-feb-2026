@@ -4,26 +4,9 @@
    an interactive dashboard with iframe page preview.
    ═══════════════════════════════════════════════════ */
 
-// ── Demo data (used when no sheet URL is configured) ──
+// ── Default sheet URL ───────────────────────────────
 const DEFAULT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=592398799&single=true&output=csv";
-const DEMO_DATA = [
-  { url: "https://example.com", name: "Homepage", cvr: 4.2, bounce: 32, sessions: 12840 },
-  { url: "https://example.com/pricing", name: "Pricing Page", cvr: 6.8, bounce: 24, sessions: 8920 },
-  { url: "https://example.com/features", name: "Features Overview", cvr: 3.1, bounce: 41, sessions: 7540 },
-  { url: "https://example.com/blog/seo-guide", name: "SEO Ultimate Guide", cvr: 1.9, bounce: 58, sessions: 15200 },
-  { url: "https://example.com/signup", name: "Sign Up", cvr: 12.4, bounce: 18, sessions: 6100 },
-  { url: "https://example.com/demo", name: "Book a Demo", cvr: 8.7, bounce: 22, sessions: 4300 },
-  { url: "https://example.com/case-studies", name: "Case Studies", cvr: 5.3, bounce: 35, sessions: 3800 },
-  { url: "https://example.com/blog/growth-tips", name: "10 Growth Tips", cvr: 2.1, bounce: 52, sessions: 11400 },
-  { url: "https://example.com/integrations", name: "Integrations", cvr: 3.8, bounce: 39, sessions: 5600 },
-  { url: "https://example.com/about", name: "About Us", cvr: 1.2, bounce: 61, sessions: 4100 },
-  { url: "https://example.com/contact", name: "Contact", cvr: 7.1, bounce: 28, sessions: 2900 },
-  { url: "https://example.com/blog/product-update", name: "Product Update Q4", cvr: 2.8, bounce: 45, sessions: 9700 },
-  { url: "https://example.com/enterprise", name: "Enterprise Plan", cvr: 9.2, bounce: 20, sessions: 3200 },
-  { url: "https://example.com/docs", name: "Documentation", cvr: 0.8, bounce: 67, sessions: 18500 },
-  { url: "https://example.com/webinar", name: "Free Webinar", cvr: 11.5, bounce: 15, sessions: 2400 },
-];
 
 // ── Password gate ───────────────────────────────────
 const PASSWORD = "fdparty";
@@ -75,6 +58,8 @@ const previewWrap = $("#preview-frame-wrap");
 const frameUrl = $("#frame-url");
 const frameExternal = $("#frame-external");
 const settingsModal = $("#settings-modal");
+const loadingOverlay = $("#loading-overlay");
+const loadingMessage = $("#loading-message");
 
 // ── Init ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -147,6 +132,10 @@ function saveSettings() {
 
 // ── Data loading ────────────────────────────────────
 async function loadData() {
+  setLoading(true, "Loading data from URL...");
+  activePage = null;
+  previewWrap.classList.add("hidden");
+
   const saved = localStorage.getItem("lp-explorer-settings");
   let sheetUrl = "";
   let colMap = {
@@ -174,24 +163,28 @@ async function loadData() {
     } catch (_) {}
   }
 
-  if (!sheetUrl) {
-    pages = [...DEMO_DATA];
-    toast("Using demo data — click ⚙ to connect your Google Sheet");
-    renderList();
-    return;
-  }
-
   try {
-    toast("Loading sheet data...");
-    const resp = await fetch(sheetUrl);
+    if (!sheetUrl) throw new Error("Sheet URL is missing. Add it in Settings.");
+
+    const requestUrl = withCacheBust(sheetUrl);
+    const resp = await fetch(requestUrl, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const csv = await resp.text();
     pages = parseCSV(csv, colMap);
-    toast(`Loaded ${pages.length} pages from your sheet`);
+    toast(`Loaded ${pages.length} pages from your sheet URL`);
   } catch (err) {
     toast(`Error loading sheet: ${err.message}`);
-    pages = [...DEMO_DATA];
+    pages = [];
+  } finally {
+    setLoading(false);
   }
+
   renderList();
 }
 
@@ -523,4 +516,22 @@ function toast(msg) {
   el.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
+}
+
+function setLoading(isLoading, msg = "Loading...") {
+  if (!loadingOverlay) return;
+  if (loadingMessage) loadingMessage.textContent = msg;
+  loadingOverlay.classList.toggle("hidden", !isLoading);
+}
+
+function withCacheBust(url) {
+  const ts = Date.now().toString();
+  try {
+    const u = new URL(url, window.location.href);
+    u.searchParams.set("_ts", ts);
+    return u.toString();
+  } catch (_) {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}_ts=${ts}`;
+  }
 }
