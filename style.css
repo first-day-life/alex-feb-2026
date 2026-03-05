@@ -477,21 +477,7 @@ ul { list-style: none; }
   color: var(--text);
   font-weight: 600;
 }
-.funnel-step-metrics {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text2);
-  gap: 10px;
-}
-.funnel-step-pct {
-  color: var(--text);
-  font-weight: 600;
-}
-.funnel-step-avg {
-  color: var(--text2);
-  white-space: nowrap;
-}
+/* (step metrics consolidated into single-line format) */
 .funnel-step-dropoff-section {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -530,16 +516,20 @@ ul { list-style: none; }
   font-size: 12px;
   padding: 3px 10px;
 }
-.funnel-step-sessions-section {
-  display: grid;
-  gap: 6px;
-}
-.funnel-step-sessions-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
+.funnel-step-sessions-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
   color: var(--text2);
+}
+.funnel-step-sessions-line > span:first-child {
   font-weight: 600;
+  color: var(--text);
+}
+.funnel-step-sessions-detail {
+  font-size: 11px;
+  color: var(--text2);
 }
 .funnel-step-bar {
   height: 10px;
