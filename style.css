@@ -701,6 +701,19 @@ ul { list-style: none; }
   animation: card-in .3s ease-out both;
 }
 
+/* Align funnel steps across columns */
+#compare-grid.compare-grid-multi .funnel-column {
+  grid-template-rows: auto auto;
+}
+#compare-grid.compare-grid-multi .funnel-header {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+#compare-grid.compare-grid-multi .funnel-kpis {
+  margin-top: auto;
+}
+
 .funnel-remove-btn {
   float: right;
   width: 24px;

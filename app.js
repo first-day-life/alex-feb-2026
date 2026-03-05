@@ -601,6 +601,39 @@ function renderCompareGrid() {
       renderCompareGrid();
     });
   });
+
+  // Equalize row heights across columns so steps line up
+  if (colCount > 1) {
+    requestAnimationFrame(() => alignCompareRows());
+  }
+}
+
+function alignCompareRows() {
+  const columns = compareGrid.querySelectorAll(".funnel-column");
+  if (columns.length < 2) return;
+
+  // Collect matching elements per row: header, then each step
+  const selectors = [".funnel-header"];
+  const stepCount = columns[0].querySelectorAll(".funnel-step").length;
+  for (let i = 0; i < stepCount; i++) {
+    selectors.push(`.funnel-step:nth-child(${i + 1})`);
+  }
+
+  selectors.forEach((sel) => {
+    const els = Array.from(columns).map((col) => {
+      if (sel === ".funnel-header") return col.querySelector(sel);
+      return col.querySelector(`.funnel-steps`).querySelector(sel);
+    }).filter(Boolean);
+
+    // Reset heights first
+    els.forEach((el) => el.style.minHeight = "");
+
+    // Find max natural height
+    const maxH = Math.max(...els.map((el) => el.offsetHeight));
+
+    // Apply to all
+    els.forEach((el) => el.style.minHeight = maxH + "px");
+  });
 }
 
 function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineStep) {
