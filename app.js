@@ -637,28 +637,27 @@ function alignCompareRows() {
 }
 
 function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineStep) {
-  const dropPct = (prevCount !== null && prevCount > 0) ? ((prevCount - count) / prevCount) * 100 : 0;
-  const drop = prevCount !== null ? Math.max(0, prevCount - count) : 0;
+  const contPct = (prevCount !== null && prevCount > 0) ? (count / prevCount) * 100 : 0;
 
-  // Compute baseline drop-off for comparison
-  let dropoffDiffHtml = "";
+  // Compute baseline continuation rate for comparison
+  let contDiffHtml = "";
   if (baselineStep && baselineStep.prevCount !== null && prevCount !== null) {
-    const blDrop = baselineStep.prevCount > 0
-      ? ((baselineStep.prevCount - baselineStep.count) / baselineStep.prevCount) * 100
+    const blCont = baselineStep.prevCount > 0
+      ? (baselineStep.count / baselineStep.prevCount) * 100
       : 0;
-    // Lower drop-off is better, so invert: higherIsBetter = false
-    dropoffDiffHtml = renderDiffBadge(dropPct, blDrop, false);
+    // Higher continuation is better
+    contDiffHtml = renderDiffBadge(contPct, blCont, true);
   }
 
-  let dropoffHtml = "";
+  let contHtml = "";
   if (prevCount !== null) {
-    dropoffHtml = `
+    contHtml = `
       <div class="funnel-step-dropoff-section">
         <div class="funnel-step-dropoff-header">
-          <span class="funnel-step-dropoff-label">Drop-off from previous step</span>
-          <span class="funnel-step-dropoff-value">${dropPct.toFixed(1)}% <span class="funnel-step-dropoff-count">(${fmtNum(drop)})</span></span>
+          <span class="funnel-step-dropoff-label">Continued from previous step</span>
+          <span class="funnel-step-dropoff-value">${contPct.toFixed(1)}% <span class="funnel-step-dropoff-count">(${fmtNum(count)})</span></span>
         </div>
-        ${dropoffDiffHtml ? `<div class="funnel-step-dropoff-diff">${dropoffDiffHtml}</div>` : ""}
+        ${contDiffHtml ? `<div class="funnel-step-dropoff-diff">${contDiffHtml}</div>` : ""}
       </div>`;
   }
 
@@ -669,7 +668,7 @@ function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineS
   return `
     <div class="funnel-step">
       <div class="funnel-step-label">${label}</div>
-      ${dropoffHtml}
+      ${contHtml}
       <div class="funnel-step-sessions-section">
         <div class="funnel-step-sessions-label">% of all sessions</div>
         <div class="funnel-step-metrics">
