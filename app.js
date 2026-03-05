@@ -47,6 +47,8 @@ const PASSWORD = "fdparty";
 // ── State ───────────────────────────────────────────
 let pages = [];
 let activePage = null;
+let selectedPages = []; // compare mode selections
+let compareMode = false;
 let lastFiltered = [];
 
 // ── DOM refs ────────────────────────────────────────
@@ -61,6 +63,8 @@ const frameExternal = $("#frame-external");
 const settingsModal = $("#settings-modal");
 const loadingOverlay = $("#loading-overlay");
 const loadingMessage = $("#loading-message");
+const compareBtn = $("#compare-btn");
+const compareGrid = $("#compare-grid");
 
 // ── Init ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -85,6 +89,9 @@ function bindEvents() {
   // Sort
   sortEl.addEventListener("change", () => renderList());
 
+  // Compare mode toggle
+  compareBtn.addEventListener("click", toggleCompareMode);
+
   // Settings
   $("#settings-btn").addEventListener("click", () => settingsModal.classList.remove("hidden"));
   $("#settings-cancel").addEventListener("click", () => settingsModal.classList.add("hidden"));
@@ -93,12 +100,46 @@ function bindEvents() {
 
   // Keyboard nav
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") settingsModal.classList.add("hidden");
+    if (e.key === "Escape") {
+      if (compareMode) {
+        toggleCompareMode();
+      } else {
+        settingsModal.classList.add("hidden");
+      }
+    }
     if (e.key === "/" && document.activeElement !== searchEl) {
       e.preventDefault();
       searchEl.focus();
     }
   });
+}
+
+// ── Compare mode ────────────────────────────────────
+function toggleCompareMode() {
+  compareMode = !compareMode;
+  compareBtn.classList.toggle("active", compareMode);
+  document.body.classList.toggle("compare-mode", compareMode);
+
+  if (!compareMode) {
+    selectedPages = [];
+    // Restore single view if there was an active page
+    if (activePage) {
+      previewWrap.classList.remove("hidden");
+      renderCompareGrid();
+    } else {
+      previewWrap.classList.add("hidden");
+    }
+  } else {
+    // Enter compare mode: if a single page was active, seed it
+    if (activePage) {
+      selectedPages = [activePage];
+    } else {
+      selectedPages = [];
+      previewWrap.classList.add("hidden");
+    }
+  }
+  renderList();
+  renderCompareGrid();
 }
 
 // ── Settings persistence ────────────────────────────
@@ -137,6 +178,7 @@ function saveSettings() {
 async function loadData() {
   setLoading(true, "Loading data from URL...");
   activePage = null;
+  selectedPages = [];
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
@@ -331,10 +373,23 @@ function renderList() {
   listEl.innerHTML = "";
   lastFiltered = filtered;
   filtered.forEach((page, i) => {
+    const isSelected = compareMode
+      ? selectedPages.some((s) => s.url === page.url)
+      : activePage && activePage.url === page.url;
+
     const li = document.createElement("li");
-    li.className = `page-card${activePage && activePage.url === page.url ? " active" : ""}`;
+    li.className = `page-card${isSelected ? " active" : ""}`;
+    if (compareMode) li.classList.add("compare-selectable");
     li.style.animationDelay = `${i * 40}ms`;
+
+    const checkboxHtml = compareMode
+      ? `<div class="page-card-checkbox ${isSelected ? "checked" : ""}">
+           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+         </div>`
+      : "";
+
     li.innerHTML = `
+      ${checkboxHtml}
       <div class="page-card-title">${esc(page.name)}</div>
       <div class="page-card-url">
         <span class="page-card-url-text">${esc(page.url)}</span>
@@ -360,7 +415,15 @@ function renderList() {
         <div class="page-card-bar-fill" style="width:${(page.sessions / maxSessions) * 100}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></div>
       </div>
     `;
-    li.addEventListener("click", () => selectPage(page, li));
+
+    li.addEventListener("click", () => {
+      if (compareMode) {
+        togglePageSelection(page);
+      } else {
+        selectPage(page, li);
+      }
+    });
+
     const openBtn = li.querySelector(".page-card-open");
     if (openBtn) {
       openBtn.addEventListener("click", (e) => {
@@ -372,6 +435,27 @@ function renderList() {
   });
 
   updateSummary(filtered);
+}
+
+function togglePageSelection(page) {
+  const idx = selectedPages.findIndex((s) => s.url === page.url);
+  if (idx >= 0) {
+    selectedPages.splice(idx, 1);
+  } else {
+    selectedPages.push(page);
+  }
+
+  if (selectedPages.length > 0) {
+    previewWrap.classList.remove("hidden");
+    // Update toolbar to show count
+    frameUrl.textContent = `Comparing ${selectedPages.length} page${selectedPages.length > 1 ? "s" : ""}`;
+    frameExternal.href = "#";
+  } else {
+    previewWrap.classList.add("hidden");
+  }
+
+  renderList();
+  renderCompareGrid();
 }
 
 function selectPage(page, cardEl) {
@@ -387,13 +471,136 @@ function selectPage(page, cardEl) {
   frameUrl.textContent = page.url;
   frameExternal.href = page.url;
 
-  updateFunnel(page, lastFiltered);
+  renderCompareGrid();
 
   // On mobile, close sidebar after selection
   if (window.innerWidth <= 768) {
     sidebarEl.classList.remove("open");
     sidebarEl.classList.add("closed");
   }
+}
+
+// ── Compare grid rendering ──────────────────────────
+function renderCompareGrid() {
+  const pagesToRender = compareMode ? selectedPages : (activePage ? [activePage] : []);
+
+  if (!pagesToRender.length) {
+    compareGrid.innerHTML = "";
+    return;
+  }
+
+  const avg = computeFunnelAverages(lastFiltered);
+  const colCount = pagesToRender.length;
+
+  // Color palette for compare mode columns
+  const colors = [
+    { accent: "#6c5ce7", accent2: "#a78bfa" },
+    { accent: "#f59e0b", accent2: "#fbbf24" },
+    { accent: "#10b981", accent2: "#34d399" },
+    { accent: "#ef4444", accent2: "#f87171" },
+    { accent: "#3b82f6", accent2: "#60a5fa" },
+    { accent: "#ec4899", accent2: "#f472b6" },
+  ];
+
+  compareGrid.className = colCount > 1 ? "compare-grid-multi" : "";
+  compareGrid.style.setProperty("--col-count", colCount);
+
+  let html = "";
+  pagesToRender.forEach((page, idx) => {
+    const color = colors[idx % colors.length];
+    const sessions = page.sessions || 0;
+    const nonBouncePct = clampRate(100 - (page.bounce || 0));
+    const atcPct = clampRate(page.addedToCartRate || 0);
+    const reachPct = clampRate(page.reachedCheckoutRate || 0);
+    const completedPct = clampRate(page.completedCheckoutRate || 0);
+    const completedSessions = page.sessionsCompleted > 0
+      ? page.sessionsCompleted
+      : Math.round(sessions * (completedPct / 100));
+    const nonBounceSessions = Math.round(sessions * (nonBouncePct / 100));
+    const addedSessions = Math.round(sessions * (atcPct / 100));
+    const reachedSessions = Math.round(sessions * (reachPct / 100));
+
+    const borderStyle = colCount > 1 ? `border-top: 3px solid ${color.accent}` : "";
+    const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}" aria-label="Remove from comparison">&times;</button>` : "";
+
+    html += `
+      <div class="funnel-column" style="${borderStyle}">
+        <div class="funnel-header">
+          <div class="funnel-title">Purchase Funnel ${removeBtn}</div>
+          <div class="funnel-page">
+            <div class="funnel-page-name">${esc(page.name)}</div>
+            <div class="funnel-page-url">${esc(page.url)}</div>
+          </div>
+          <div class="funnel-kpis">
+            <div class="funnel-kpi">
+              <span class="funnel-kpi-value">${page.cvr.toFixed(1)}%</span>
+              <span class="funnel-kpi-label">Conversion Rate</span>
+            </div>
+            <div class="funnel-kpi">
+              <span class="funnel-kpi-value">${fmtNum(sessions)}</span>
+              <span class="funnel-kpi-label">Sessions</span>
+            </div>
+            <div class="funnel-kpi">
+              <span class="funnel-kpi-value">${fmtNum(completedSessions)}</span>
+              <span class="funnel-kpi-label">Completed</span>
+            </div>
+          </div>
+        </div>
+        <div class="funnel-steps">
+          ${renderFunnelStep("Sessions", 100, sessions, null, 100, color)}
+          ${renderFunnelStep("Did Not Bounce", nonBouncePct, nonBounceSessions, sessions, avg.nonBouncePct, color)}
+          ${renderFunnelStep("Added to Cart", atcPct, addedSessions, nonBounceSessions, avg.addedPct, color)}
+          ${renderFunnelStep("Reached Checkout", reachPct, reachedSessions, addedSessions, avg.reachedPct, color)}
+          ${renderFunnelStep("Completed Checkout", completedPct, completedSessions, reachedSessions, avg.completedPct, color)}
+        </div>
+      </div>
+    `;
+  });
+
+  compareGrid.innerHTML = html;
+
+  // Bind remove buttons
+  compareGrid.querySelectorAll(".funnel-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      selectedPages.splice(idx, 1);
+      if (selectedPages.length === 0) previewWrap.classList.add("hidden");
+      renderList();
+      renderCompareGrid();
+    });
+  });
+}
+
+function renderFunnelStep(label, pct, count, prevCount, avgPct, color) {
+  let dropoffHtml = "";
+  if (prevCount !== null) {
+    const drop = Math.max(0, prevCount - count);
+    const dropPct = prevCount > 0 ? (drop / prevCount) * 100 : 0;
+    dropoffHtml = `
+      <div class="funnel-step-dropoff">
+        <span class="funnel-step-dropoff-label">Drop-off</span>
+        <span class="funnel-step-dropoff-value">${fmtNum(drop)} (${dropPct.toFixed(1)}%)</span>
+      </div>`;
+  }
+
+  const barGradient = color
+    ? `background: linear-gradient(90deg, ${color.accent}, ${color.accent2})`
+    : `background: linear-gradient(90deg, var(--accent), var(--accent2))`;
+
+  return `
+    <div class="funnel-step">
+      <div class="funnel-step-label">${label}</div>
+      <div class="funnel-step-metrics">
+        <span class="funnel-step-pct">${pct.toFixed(1)}%</span>
+        ${avgPct !== null ? `<span class="funnel-step-avg">(vs avg ${avgPct.toFixed(1)}%)</span>` : ""}
+        <span class="funnel-step-count">${fmtNum(count)}</span>
+      </div>
+      ${dropoffHtml}
+      <div class="funnel-step-bar">
+        <div class="funnel-step-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%; ${barGradient}"></div>
+      </div>
+    </div>`;
 }
 
 // ── Summary ─────────────────────────────────────────
@@ -409,34 +616,6 @@ function updateSummary(filtered) {
   $("#avg-cvr").textContent = weightedCvr.toFixed(1) + "%";
   $("#avg-bounce").textContent = weightedBounce.toFixed(1) + "%";
   $("#total-sessions").textContent = fmtNum(totalSess);
-}
-
-function updateFunnel(page, filtered) {
-  const sessions = page.sessions || 0;
-  const atcPct = clampRate(page.addedToCartRate || 0);
-  const reachPct = clampRate(page.reachedCheckoutRate || 0);
-  const completedPct = clampRate(page.completedCheckoutRate || 0);
-  const nonBouncePct = clampRate(100 - (page.bounce || 0));
-  const completedSessions = page.sessionsCompleted > 0
-    ? page.sessionsCompleted
-    : Math.round(sessions * (completedPct / 100));
-  const nonBounceSessions = Math.round(sessions * (nonBouncePct / 100));
-  const addedSessions = Math.round(sessions * (atcPct / 100));
-  const reachedSessions = Math.round(sessions * (reachPct / 100));
-
-  $("#funnel-page-name").textContent = page.name;
-  $("#funnel-page-url").textContent = page.url;
-  $("#funnel-cvr").textContent = page.cvr.toFixed(1) + "%";
-  $("#funnel-sessions").textContent = fmtNum(sessions);
-  $("#funnel-completed-sessions").textContent = fmtNum(completedSessions);
-
-  const avg = computeFunnelAverages(filtered);
-
-  setFunnelStep("sessions", 100, sessions, null, 100);
-  setFunnelStep("nonbounce", nonBouncePct, nonBounceSessions, sessions, avg.nonBouncePct);
-  setFunnelStep("added", atcPct, addedSessions, nonBounceSessions, avg.addedPct);
-  setFunnelStep("reached", reachPct, reachedSessions, addedSessions, avg.reachedPct);
-  setFunnelStep("completed", completedPct, completedSessions, reachedSessions, avg.completedPct);
 }
 
 // ── Helpers ─────────────────────────────────────────
@@ -462,26 +641,6 @@ function esc(str) {
   const d = document.createElement("div");
   d.textContent = str;
   return d.innerHTML;
-}
-
-function setFunnelStep(key, pct, count, prevCount = null, avgPct = null) {
-  $(`#funnel-${key}-pct`).textContent = pct.toFixed(1) + "%";
-  if (avgPct !== null) {
-    $(`#funnel-${key}-avg`).textContent = `(vs avg ${avgPct.toFixed(1)}%)`;
-  }
-  $(`#funnel-${key}-count`).textContent = fmtNum(count);
-  $(`#funnel-${key}-bar`).style.width = `${Math.max(2, Math.min(100, pct))}%`;
-
-  const dropEl = document.querySelector(`#funnel-${key}-dropoff`);
-  if (dropEl) {
-    if (prevCount === null) {
-      dropEl.textContent = "—";
-    } else {
-      const drop = Math.max(0, prevCount - count);
-      const dropPct = prevCount > 0 ? (drop / prevCount) * 100 : 0;
-      dropEl.textContent = `${fmtNum(drop)} (${dropPct.toFixed(1)}%)`;
-    }
-  }
 }
 
 function clampRate(v) {
