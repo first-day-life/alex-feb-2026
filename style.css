@@ -530,6 +530,17 @@ ul { list-style: none; }
   font-size: 12px;
   padding: 3px 10px;
 }
+.funnel-step-sessions-section {
+  display: grid;
+  gap: 6px;
+}
+.funnel-step-sessions-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text2);
+  font-weight: 600;
+}
 .funnel-step-bar {
   height: 10px;
   background: var(--surface2);
