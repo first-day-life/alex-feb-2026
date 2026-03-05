@@ -492,20 +492,43 @@ ul { list-style: none; }
   color: var(--text2);
   white-space: nowrap;
 }
-.funnel-step-dropoff {
+.funnel-step-dropoff-section {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 6px;
+}
+.funnel-step-dropoff-header {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--text2);
+  align-items: center;
 }
 .funnel-step-dropoff-label {
   text-transform: uppercase;
   letter-spacing: .06em;
   font-size: 10px;
+  color: var(--text2);
+  font-weight: 600;
 }
 .funnel-step-dropoff-value {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 14px;
+}
+.funnel-step-dropoff-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+}
+.funnel-step-dropoff-diff {
+  display: flex;
+  gap: 6px;
+}
+.funnel-step-dropoff-diff .diff-badge {
+  font-size: 12px;
+  padding: 3px 10px;
 }
 .funnel-step-bar {
   height: 10px;
@@ -757,11 +780,7 @@ ul { list-style: none; }
   color: var(--text2);
   background: var(--surface2);
 }
-.funnel-step-diff {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+/* (step-level diffs now rendered inside dropoff section) */
 .funnel-baseline-badge {
   display: inline-block;
   font-size: 10px;

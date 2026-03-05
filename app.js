@@ -578,11 +578,11 @@ function renderCompareGrid() {
           </div>
         </div>
         <div class="funnel-steps">
-          ${renderFunnelStep("Sessions", 100, sd.sessions, null, 100, color, diff ? { pct: 100, count: diff.sessions } : null)}
-          ${renderFunnelStep("Did Not Bounce", sd.nonBouncePct, sd.nonBounceSessions, sd.sessions, avg.nonBouncePct, color, diff ? { pct: baseline.nonBouncePct, count: baseline.nonBounceSessions } : null)}
-          ${renderFunnelStep("Added to Cart", sd.atcPct, sd.addedSessions, sd.nonBounceSessions, avg.addedPct, color, diff ? { pct: baseline.atcPct, count: baseline.addedSessions } : null)}
-          ${renderFunnelStep("Reached Checkout", sd.reachPct, sd.reachedSessions, sd.addedSessions, avg.reachedPct, color, diff ? { pct: baseline.reachPct, count: baseline.reachedSessions } : null)}
-          ${renderFunnelStep("Completed Checkout", sd.completedPct, sd.completedSessions, sd.reachedSessions, avg.completedPct, color, diff ? { pct: baseline.completedPct, count: baseline.completedSessions } : null)}
+          ${renderFunnelStep("Sessions", 100, sd.sessions, null, 100, color, diff ? { pct: 100, prevCount: null, count: diff.sessions } : null)}
+          ${renderFunnelStep("Did Not Bounce", sd.nonBouncePct, sd.nonBounceSessions, sd.sessions, avg.nonBouncePct, color, diff ? { pct: baseline.nonBouncePct, prevCount: baseline.sessions, count: baseline.nonBounceSessions } : null)}
+          ${renderFunnelStep("Added to Cart", sd.atcPct, sd.addedSessions, sd.nonBounceSessions, avg.addedPct, color, diff ? { pct: baseline.atcPct, prevCount: baseline.nonBounceSessions, count: baseline.addedSessions } : null)}
+          ${renderFunnelStep("Reached Checkout", sd.reachPct, sd.reachedSessions, sd.addedSessions, avg.reachedPct, color, diff ? { pct: baseline.reachPct, prevCount: baseline.addedSessions, count: baseline.reachedSessions } : null)}
+          ${renderFunnelStep("Completed Checkout", sd.completedPct, sd.completedSessions, sd.reachedSessions, avg.completedPct, color, diff ? { pct: baseline.completedPct, prevCount: baseline.reachedSessions, count: baseline.completedSessions } : null)}
         </div>
       </div>
     `;
@@ -637,21 +637,29 @@ function alignCompareRows() {
 }
 
 function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineStep) {
-  let dropoffHtml = "";
-  if (prevCount !== null) {
-    const drop = Math.max(0, prevCount - count);
-    const dropPct = prevCount > 0 ? (drop / prevCount) * 100 : 0;
-    dropoffHtml = `
-      <div class="funnel-step-dropoff">
-        <span class="funnel-step-dropoff-label">Drop-off</span>
-        <span class="funnel-step-dropoff-value">${fmtNum(drop)} (${dropPct.toFixed(1)}%)</span>
-      </div>`;
+  const dropPct = (prevCount !== null && prevCount > 0) ? ((prevCount - count) / prevCount) * 100 : 0;
+  const drop = prevCount !== null ? Math.max(0, prevCount - count) : 0;
+
+  // Compute baseline drop-off for comparison
+  let dropoffDiffHtml = "";
+  if (baselineStep && baselineStep.prevCount !== null && prevCount !== null) {
+    const blDrop = baselineStep.prevCount > 0
+      ? ((baselineStep.prevCount - baselineStep.count) / baselineStep.prevCount) * 100
+      : 0;
+    // Lower drop-off is better, so invert: higherIsBetter = false
+    dropoffDiffHtml = renderDiffBadge(dropPct, blDrop, false);
   }
 
-  // Diff vs baseline
-  let diffHtml = "";
-  if (baselineStep) {
-    diffHtml = `<div class="funnel-step-diff">${renderDiffBadge(pct, baselineStep.pct, true)}</div>`;
+  let dropoffHtml = "";
+  if (prevCount !== null) {
+    dropoffHtml = `
+      <div class="funnel-step-dropoff-section">
+        <div class="funnel-step-dropoff-header">
+          <span class="funnel-step-dropoff-label">Drop-off</span>
+          <span class="funnel-step-dropoff-value">${dropPct.toFixed(1)}% <span class="funnel-step-dropoff-count">(${fmtNum(drop)})</span></span>
+        </div>
+        ${dropoffDiffHtml ? `<div class="funnel-step-dropoff-diff">${dropoffDiffHtml}</div>` : ""}
+      </div>`;
   }
 
   const barGradient = color
@@ -661,13 +669,12 @@ function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineS
   return `
     <div class="funnel-step">
       <div class="funnel-step-label">${label}</div>
+      ${dropoffHtml}
       <div class="funnel-step-metrics">
         <span class="funnel-step-pct">${pct.toFixed(1)}%</span>
         ${avgPct !== null ? `<span class="funnel-step-avg">(vs avg ${avgPct.toFixed(1)}%)</span>` : ""}
         <span class="funnel-step-count">${fmtNum(count)}</span>
       </div>
-      ${diffHtml}
-      ${dropoffHtml}
       <div class="funnel-step-bar">
         <div class="funnel-step-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%; ${barGradient}"></div>
       </div>
