@@ -505,9 +505,8 @@ function renderCompareGrid() {
   compareGrid.className = colCount > 1 ? "compare-grid-multi" : "";
   compareGrid.style.setProperty("--col-count", colCount);
 
-  let html = "";
-  pagesToRender.forEach((page, idx) => {
-    const color = colors[idx % colors.length];
+  // Extract step data for each page
+  function getStepData(page) {
     const sessions = page.sessions || 0;
     const nonBouncePct = clampRate(100 - (page.bounce || 0));
     const atcPct = clampRate(page.addedToCartRate || 0);
@@ -516,17 +515,46 @@ function renderCompareGrid() {
     const completedSessions = page.sessionsCompleted > 0
       ? page.sessionsCompleted
       : Math.round(sessions * (completedPct / 100));
-    const nonBounceSessions = Math.round(sessions * (nonBouncePct / 100));
-    const addedSessions = Math.round(sessions * (atcPct / 100));
-    const reachedSessions = Math.round(sessions * (reachPct / 100));
+    return {
+      sessions,
+      nonBouncePct,
+      atcPct,
+      reachPct,
+      completedPct,
+      completedSessions,
+      nonBounceSessions: Math.round(sessions * (nonBouncePct / 100)),
+      addedSessions: Math.round(sessions * (atcPct / 100)),
+      reachedSessions: Math.round(sessions * (reachPct / 100)),
+    };
+  }
+
+  const allStepData = pagesToRender.map(getStepData);
+  const baseline = colCount > 1 ? allStepData[0] : null;
+
+  let html = "";
+  pagesToRender.forEach((page, idx) => {
+    const color = colors[idx % colors.length];
+    const sd = allStepData[idx];
+    const diff = (baseline && idx > 0) ? baseline : null;
 
     const borderStyle = colCount > 1 ? `border-top: 3px solid ${color.accent}` : "";
     const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}" aria-label="Remove from comparison">&times;</button>` : "";
+    const baselineLabel = (colCount > 1 && idx === 0) ? `<span class="funnel-baseline-badge">Baseline</span>` : "";
+
+    // KPI diffs vs baseline
+    let cvrDiffHtml = "";
+    let sessionsDiffHtml = "";
+    let completedDiffHtml = "";
+    if (diff) {
+      cvrDiffHtml = renderDiffBadge(page.cvr, pagesToRender[0].cvr, true);
+      sessionsDiffHtml = renderDiffBadge(sd.sessions, diff.sessions, true, true);
+      completedDiffHtml = renderDiffBadge(sd.completedSessions, diff.completedSessions, true, true);
+    }
 
     html += `
       <div class="funnel-column" style="${borderStyle}">
         <div class="funnel-header">
-          <div class="funnel-title">Purchase Funnel ${removeBtn}</div>
+          <div class="funnel-title">Purchase Funnel ${baselineLabel}${removeBtn}</div>
           <div class="funnel-page">
             <div class="funnel-page-name">${esc(page.name)}</div>
             <div class="funnel-page-url">${esc(page.url)}</div>
@@ -534,24 +562,27 @@ function renderCompareGrid() {
           <div class="funnel-kpis">
             <div class="funnel-kpi">
               <span class="funnel-kpi-value">${page.cvr.toFixed(1)}%</span>
+              ${cvrDiffHtml}
               <span class="funnel-kpi-label">Conversion Rate</span>
             </div>
             <div class="funnel-kpi">
-              <span class="funnel-kpi-value">${fmtNum(sessions)}</span>
+              <span class="funnel-kpi-value">${fmtNum(sd.sessions)}</span>
+              ${sessionsDiffHtml}
               <span class="funnel-kpi-label">Sessions</span>
             </div>
             <div class="funnel-kpi">
-              <span class="funnel-kpi-value">${fmtNum(completedSessions)}</span>
+              <span class="funnel-kpi-value">${fmtNum(sd.completedSessions)}</span>
+              ${completedDiffHtml}
               <span class="funnel-kpi-label">Completed</span>
             </div>
           </div>
         </div>
         <div class="funnel-steps">
-          ${renderFunnelStep("Sessions", 100, sessions, null, 100, color)}
-          ${renderFunnelStep("Did Not Bounce", nonBouncePct, nonBounceSessions, sessions, avg.nonBouncePct, color)}
-          ${renderFunnelStep("Added to Cart", atcPct, addedSessions, nonBounceSessions, avg.addedPct, color)}
-          ${renderFunnelStep("Reached Checkout", reachPct, reachedSessions, addedSessions, avg.reachedPct, color)}
-          ${renderFunnelStep("Completed Checkout", completedPct, completedSessions, reachedSessions, avg.completedPct, color)}
+          ${renderFunnelStep("Sessions", 100, sd.sessions, null, 100, color, diff ? { pct: 100, count: diff.sessions } : null)}
+          ${renderFunnelStep("Did Not Bounce", sd.nonBouncePct, sd.nonBounceSessions, sd.sessions, avg.nonBouncePct, color, diff ? { pct: baseline.nonBouncePct, count: baseline.nonBounceSessions } : null)}
+          ${renderFunnelStep("Added to Cart", sd.atcPct, sd.addedSessions, sd.nonBounceSessions, avg.addedPct, color, diff ? { pct: baseline.atcPct, count: baseline.addedSessions } : null)}
+          ${renderFunnelStep("Reached Checkout", sd.reachPct, sd.reachedSessions, sd.addedSessions, avg.reachedPct, color, diff ? { pct: baseline.reachPct, count: baseline.reachedSessions } : null)}
+          ${renderFunnelStep("Completed Checkout", sd.completedPct, sd.completedSessions, sd.reachedSessions, avg.completedPct, color, diff ? { pct: baseline.completedPct, count: baseline.completedSessions } : null)}
         </div>
       </div>
     `;
@@ -572,7 +603,7 @@ function renderCompareGrid() {
   });
 }
 
-function renderFunnelStep(label, pct, count, prevCount, avgPct, color) {
+function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineStep) {
   let dropoffHtml = "";
   if (prevCount !== null) {
     const drop = Math.max(0, prevCount - count);
@@ -582,6 +613,12 @@ function renderFunnelStep(label, pct, count, prevCount, avgPct, color) {
         <span class="funnel-step-dropoff-label">Drop-off</span>
         <span class="funnel-step-dropoff-value">${fmtNum(drop)} (${dropPct.toFixed(1)}%)</span>
       </div>`;
+  }
+
+  // Diff vs baseline
+  let diffHtml = "";
+  if (baselineStep) {
+    diffHtml = `<div class="funnel-step-diff">${renderDiffBadge(pct, baselineStep.pct, true)}</div>`;
   }
 
   const barGradient = color
@@ -596,11 +633,38 @@ function renderFunnelStep(label, pct, count, prevCount, avgPct, color) {
         ${avgPct !== null ? `<span class="funnel-step-avg">(vs avg ${avgPct.toFixed(1)}%)</span>` : ""}
         <span class="funnel-step-count">${fmtNum(count)}</span>
       </div>
+      ${diffHtml}
       ${dropoffHtml}
       <div class="funnel-step-bar">
         <div class="funnel-step-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%; ${barGradient}"></div>
       </div>
     </div>`;
+}
+
+// Renders a diff badge showing absolute diff (pp) and relative % change
+// higherIsBetter: true = green when positive, red when negative
+// isAbsolute: true = compare raw numbers (sessions), false = compare percentages
+function renderDiffBadge(value, baselineValue, higherIsBetter, isAbsolute) {
+  const absDiff = value - baselineValue;
+  const relDiff = baselineValue !== 0 ? ((value - baselineValue) / baselineValue) * 100 : 0;
+
+  if (absDiff === 0 && relDiff === 0) {
+    return `<span class="diff-badge diff-neutral">0</span>`;
+  }
+
+  const isPositive = absDiff > 0;
+  const isGood = higherIsBetter ? isPositive : !isPositive;
+  const colorClass = isGood ? "diff-good" : "diff-bad";
+  const arrow = isPositive ? "&#9650;" : "&#9660;";
+  const sign = isPositive ? "+" : "";
+
+  if (isAbsolute) {
+    // For absolute numbers (sessions, completed), show count diff + relative %
+    return `<span class="diff-badge ${colorClass}">${arrow} ${sign}${fmtNum(Math.round(absDiff))} (${sign}${relDiff.toFixed(1)}%)</span>`;
+  }
+
+  // For percentages, show pp diff + relative %
+  return `<span class="diff-badge ${colorClass}">${arrow} ${sign}${absDiff.toFixed(1)}pp (${sign}${relDiff.toFixed(1)}%)</span>`;
 }
 
 // ── Summary ─────────────────────────────────────────
