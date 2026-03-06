@@ -220,8 +220,9 @@ async function loadData() {
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      // Only use custom URL if set and period is yesterday (default)
-      if (s.sheetUrl && activePeriod === "yesterday") sheetUrl = s.sheetUrl;
+      // Only use custom URL if it differs from the default base pattern
+      const isCustomUrl = s.sheetUrl && !s.sheetUrl.startsWith(SHEET_BASE);
+      if (isCustomUrl) sheetUrl = s.sheetUrl;
       if (s.colUrl) colMap.url = s.colUrl;
       if (s.colName) colMap.name = s.colName;
       if (s.colCvr) colMap.cvr = s.colCvr;
