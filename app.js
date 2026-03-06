@@ -244,8 +244,9 @@ async function loadData() {
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const csv = await resp.text();
-    pages = parseCSV(csv, colMap);
-    toast(`Loaded ${pages.length} pages from your sheet URL`);
+    pages = parseCSV(csv, colMap, activePeriod);
+    console.log(`[LP Explorer] Period: ${activePeriod}, URL: ${sheetUrl}`);
+    toast(`Loaded ${pages.length} pages (${activePeriod === "7d" ? "Last 7 Days" : "Yesterday"})`);
   } catch (err) {
     toast(`Error loading sheet: ${err.message}`);
     pages = [];
@@ -257,7 +258,7 @@ async function loadData() {
 }
 
 // ── CSV parser ──────────────────────────────────────
-function parseCSV(text, colMap) {
+function parseCSV(text, colMap, period) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
 
@@ -297,9 +298,10 @@ function parseCSV(text, colMap) {
 
   if (!rows.length) return [];
 
-  // If a day column exists, only keep the latest day
+  // If a day column exists and we're on yesterday, only keep the latest day
+  // For 7d period, use all rows (already aggregated in the sheet)
   let latestRows = rows;
-  if (idxDay >= 0) {
+  if (idxDay >= 0 && period !== "7d") {
     const latestDay = rows
       .map((r) => r.day)
       .filter(Boolean)
