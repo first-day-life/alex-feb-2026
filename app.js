@@ -8,7 +8,7 @@
 const SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub";
 const SHEET_GIDS = {
   yesterday: "592398799",
-  "7d": "1848498498",
+  "7d": "1777172587",
 };
 function sheetUrlForPeriod(period) {
   const gid = SHEET_GIDS[period] || SHEET_GIDS.yesterday;
