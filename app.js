@@ -667,11 +667,8 @@ function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineS
 
   return `
     <div class="funnel-step">
-      <div class="funnel-step-label">${label}</div>
-      <div class="funnel-step-sessions-line">
-        <span>${pct.toFixed(1)}% of all sessions</span>
-        <span class="funnel-step-sessions-detail">${fmtNum(count)}${avgPct !== null ? ` (vs avg ${avgPct.toFixed(1)}%)` : ""}</span>
-      </div>
+      <div class="funnel-step-headline">${label} — ${fmtNum(count)}</div>
+      ${prevCount !== null ? `<div class="funnel-step-sessions-line">${pct.toFixed(1)}% of all sessions${avgPct !== null ? ` (vs avg ${avgPct.toFixed(1)}%)` : ""}</div>` : ""}
       <div class="funnel-step-bar">
         <div class="funnel-step-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%; ${barGradient}"></div>
       </div>
