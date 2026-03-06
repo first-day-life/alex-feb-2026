@@ -4,9 +4,17 @@
    an interactive dashboard with iframe page preview.
    ═══════════════════════════════════════════════════ */
 
-// ── Default sheet URL ───────────────────────────────
-const DEFAULT_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=592398799&single=true&output=csv";
+// ── Default sheet URLs by period ─────────────────────
+const SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub";
+const SHEET_GIDS = {
+  yesterday: "592398799",
+  "7d": "1848498498",
+};
+function sheetUrlForPeriod(period) {
+  const gid = SHEET_GIDS[period] || SHEET_GIDS.yesterday;
+  return `${SHEET_BASE}?gid=${gid}&single=true&output=csv`;
+}
+const DEFAULT_SHEET_URL = sheetUrlForPeriod("yesterday");
 
 // ── Password gate ───────────────────────────────────
 const PASSWORD = "fdparty";
@@ -50,6 +58,7 @@ let activePage = null;
 let selectedPages = []; // compare mode selections
 let compareMode = false;
 let lastFiltered = [];
+let activePeriod = "yesterday";
 
 // ── DOM refs ────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -91,6 +100,18 @@ function bindEvents() {
 
   // Compare mode toggle
   compareBtn.addEventListener("click", toggleCompareMode);
+
+  // Period toggle
+  document.querySelectorAll(".period-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const period = btn.dataset.period;
+      if (period === activePeriod) return;
+      activePeriod = period;
+      document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadData();
+    });
+  });
 
   // Settings
   $("#settings-btn").addEventListener("click", () => settingsModal.classList.remove("hidden"));
@@ -182,7 +203,7 @@ async function loadData() {
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
-  let sheetUrl = DEFAULT_SHEET_URL;
+  let sheetUrl = sheetUrlForPeriod(activePeriod);
   let colMap = {
     day: "day",
     url: "landing_page_path",
@@ -199,7 +220,8 @@ async function loadData() {
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      sheetUrl = s.sheetUrl || DEFAULT_SHEET_URL;
+      // Only use custom URL if set and period is yesterday (default)
+      if (s.sheetUrl && activePeriod === "yesterday") sheetUrl = s.sheetUrl;
       if (s.colUrl) colMap.url = s.colUrl;
       if (s.colName) colMap.name = s.colName;
       if (s.colCvr) colMap.cvr = s.colCvr;
