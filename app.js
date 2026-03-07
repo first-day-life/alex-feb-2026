@@ -539,6 +539,45 @@ function selectPage(page, cardEl) {
 }
 
 // ── Compare grid rendering ──────────────────────────
+
+const FUNNEL_STEPS = [
+  { key: "sessions", label: "Sessions" },
+  { key: "engaged", label: "Engaged" },
+  { key: "cart", label: "Added to Cart" },
+  { key: "checkout", label: "Reached Checkout" },
+  { key: "purchase", label: "Completed Purchase" },
+];
+
+function getStepData(page) {
+  const sessions = page.sessions || 0;
+  const engagedPct = clampRate(100 - (page.bounce || 0));
+  const cartPct = clampRate(page.addedToCartRate || 0);
+  const checkoutPct = clampRate(page.reachedCheckoutRate || 0);
+  const purchasePct = clampRate(page.completedCheckoutRate || 0);
+  const purchaseCount = page.sessionsCompleted > 0
+    ? page.sessionsCompleted
+    : Math.round(sessions * (purchasePct / 100));
+
+  const steps = [
+    { count: sessions, pctOfAll: 100 },
+    { count: Math.round(sessions * engagedPct / 100), pctOfAll: engagedPct },
+    { count: Math.round(sessions * cartPct / 100), pctOfAll: cartPct },
+    { count: Math.round(sessions * checkoutPct / 100), pctOfAll: checkoutPct },
+    { count: purchaseCount, pctOfAll: purchasePct },
+  ];
+
+  // Compute step conversion (from previous step)
+  for (let i = 0; i < steps.length; i++) {
+    if (i === 0) {
+      steps[i].stepConv = null; // no previous step
+    } else {
+      const prev = steps[i - 1].count;
+      steps[i].stepConv = prev > 0 ? (steps[i].count / prev) * 100 : 0;
+    }
+  }
+  return steps;
+}
+
 function renderCompareGrid() {
   const pagesToRender = compareMode ? selectedPages : (activePage ? [activePage] : []);
 
@@ -547,106 +586,14 @@ function renderCompareGrid() {
     return;
   }
 
-  const avg = computeFunnelAverages(lastFiltered);
-  const colCount = pagesToRender.length;
+  const allSteps = pagesToRender.map(getStepData);
+  const isCompare = pagesToRender.length > 1;
 
-  // Color palette for compare mode columns
-  const colors = [
-    { accent: "#6c5ce7", accent2: "#a78bfa" },
-    { accent: "#f59e0b", accent2: "#fbbf24" },
-    { accent: "#10b981", accent2: "#34d399" },
-    { accent: "#ef4444", accent2: "#f87171" },
-    { accent: "#3b82f6", accent2: "#60a5fa" },
-    { accent: "#ec4899", accent2: "#f472b6" },
-  ];
-
-  compareGrid.className = colCount > 1 ? "compare-grid-multi" : "";
-  compareGrid.style.setProperty("--col-count", colCount);
-
-  // Extract step data for each page
-  function getStepData(page) {
-    const sessions = page.sessions || 0;
-    const nonBouncePct = clampRate(100 - (page.bounce || 0));
-    const atcPct = clampRate(page.addedToCartRate || 0);
-    const reachPct = clampRate(page.reachedCheckoutRate || 0);
-    const completedPct = clampRate(page.completedCheckoutRate || 0);
-    const completedSessions = page.sessionsCompleted > 0
-      ? page.sessionsCompleted
-      : Math.round(sessions * (completedPct / 100));
-    return {
-      sessions,
-      nonBouncePct,
-      atcPct,
-      reachPct,
-      completedPct,
-      completedSessions,
-      nonBounceSessions: Math.round(sessions * (nonBouncePct / 100)),
-      addedSessions: Math.round(sessions * (atcPct / 100)),
-      reachedSessions: Math.round(sessions * (reachPct / 100)),
-    };
+  if (isCompare) {
+    renderFunnelTable(pagesToRender, allSteps);
+  } else {
+    renderSingleFunnel(pagesToRender[0], allSteps[0]);
   }
-
-  const allStepData = pagesToRender.map(getStepData);
-  const baseline = colCount > 1 ? allStepData[0] : null;
-
-  let html = "";
-  pagesToRender.forEach((page, idx) => {
-    const color = colors[idx % colors.length];
-    const sd = allStepData[idx];
-    const diff = (baseline && idx > 0) ? baseline : null;
-
-    const borderStyle = colCount > 1 ? `border-top: 3px solid ${color.accent}` : "";
-    const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}" aria-label="Remove from comparison">&times;</button>` : "";
-    const baselineLabel = (colCount > 1 && idx === 0) ? `<span class="funnel-baseline-badge">Baseline</span>` : "";
-
-    // KPI diffs vs baseline
-    let cvrDiffHtml = "";
-    let sessionsDiffHtml = "";
-    let completedDiffHtml = "";
-    if (diff) {
-      cvrDiffHtml = renderDiffBadge(page.cvr, pagesToRender[0].cvr, true);
-      sessionsDiffHtml = renderDiffBadge(sd.sessions, diff.sessions, true, true);
-      completedDiffHtml = renderDiffBadge(sd.completedSessions, diff.completedSessions, true, true);
-    }
-
-    html += `
-      <div class="funnel-column" style="${borderStyle}">
-        <div class="funnel-header">
-          <div class="funnel-title">Purchase Funnel ${baselineLabel}${removeBtn}</div>
-          <div class="funnel-page">
-            <div class="funnel-page-name">${esc(page.name)}</div>
-            <div class="funnel-page-url">${esc(page.url)}</div>
-          </div>
-          <div class="funnel-kpis">
-            <div class="funnel-kpi">
-              <span class="funnel-kpi-value">${page.cvr.toFixed(1)}%</span>
-              ${cvrDiffHtml}
-              <span class="funnel-kpi-label">Conversion Rate</span>
-            </div>
-            <div class="funnel-kpi">
-              <span class="funnel-kpi-value">${fmtNum(sd.sessions)}</span>
-              ${sessionsDiffHtml}
-              <span class="funnel-kpi-label">Sessions</span>
-            </div>
-            <div class="funnel-kpi">
-              <span class="funnel-kpi-value">${fmtNum(sd.completedSessions)}</span>
-              ${completedDiffHtml}
-              <span class="funnel-kpi-label">Completed</span>
-            </div>
-          </div>
-        </div>
-        <div class="funnel-steps">
-          ${renderFunnelStep("Sessions", 100, sd.sessions, null, 100, color, diff ? { pct: 100, prevCount: null, count: diff.sessions } : null)}
-          ${renderFunnelStep("Engaged (did not bounce)", sd.nonBouncePct, sd.nonBounceSessions, sd.sessions, avg.nonBouncePct, color, diff ? { pct: baseline.nonBouncePct, prevCount: baseline.sessions, count: baseline.nonBounceSessions } : null)}
-          ${renderFunnelStep("Added to Cart", sd.atcPct, sd.addedSessions, sd.nonBounceSessions, avg.addedPct, color, diff ? { pct: baseline.atcPct, prevCount: baseline.nonBounceSessions, count: baseline.addedSessions } : null)}
-          ${renderFunnelStep("Reached Checkout", sd.reachPct, sd.reachedSessions, sd.addedSessions, avg.reachedPct, color, diff ? { pct: baseline.reachPct, prevCount: baseline.addedSessions, count: baseline.reachedSessions } : null)}
-          ${renderFunnelStep("Completed Checkout", sd.completedPct, sd.completedSessions, sd.reachedSessions, avg.completedPct, color, diff ? { pct: baseline.completedPct, prevCount: baseline.reachedSessions, count: baseline.completedSessions } : null)}
-        </div>
-      </div>
-    `;
-  });
-
-  compareGrid.innerHTML = html;
 
   // Bind remove buttons
   compareGrid.querySelectorAll(".funnel-remove-btn").forEach((btn) => {
@@ -659,79 +606,157 @@ function renderCompareGrid() {
       renderCompareGrid();
     });
   });
-
-  // Equalize row heights across columns so steps line up
-  if (colCount > 1) {
-    requestAnimationFrame(() => alignCompareRows());
-  }
 }
 
-function alignCompareRows() {
-  const columns = compareGrid.querySelectorAll(".funnel-column");
-  if (columns.length < 2) return;
+// ── Single page funnel ──────────────────────────────
+function renderSingleFunnel(page, steps) {
+  let html = `<div class="funnel-single">`;
+  html += `<div class="funnel-single-header">
+    <div class="funnel-page-name">${esc(page.name)}</div>
+    <div class="funnel-page-url">${esc(page.url)}</div>
+    <div class="funnel-kpis">
+      <div class="funnel-kpi"><span class="funnel-kpi-value">${page.cvr.toFixed(1)}%</span><span class="funnel-kpi-label">CVR</span></div>
+      <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(page.sessions)}</span><span class="funnel-kpi-label">Sessions</span></div>
+      <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(steps[4].count)}</span><span class="funnel-kpi-label">Purchases</span></div>
+    </div>
+  </div>`;
 
-  // Collect matching elements per row: header, then each step
-  const selectors = [".funnel-header"];
-  const stepCount = columns[0].querySelectorAll(".funnel-step").length;
-  for (let i = 0; i < stepCount; i++) {
-    selectors.push(`.funnel-step:nth-child(${i + 1})`);
-  }
+  html += `<div class="funnel-flow">`;
+  for (let i = 0; i < FUNNEL_STEPS.length; i++) {
+    const step = steps[i];
+    const barWidth = Math.max(3, step.pctOfAll);
 
-  selectors.forEach((sel) => {
-    const els = Array.from(columns).map((col) => {
-      if (sel === ".funnel-header") return col.querySelector(sel);
-      return col.querySelector(`.funnel-steps`).querySelector(sel);
-    }).filter(Boolean);
-
-    // Reset heights first
-    els.forEach((el) => el.style.minHeight = "");
-
-    // Find max natural height
-    const maxH = Math.max(...els.map((el) => el.offsetHeight));
-
-    // Apply to all
-    els.forEach((el) => el.style.minHeight = maxH + "px");
-  });
-}
-
-function renderFunnelStep(label, pct, count, prevCount, avgPct, color, baselineStep) {
-  const contPct = (prevCount !== null && prevCount > 0) ? (count / prevCount) * 100 : 0;
-
-  // Compute baseline continuation rate for comparison
-  let contDiffHtml = "";
-  if (baselineStep && baselineStep.prevCount !== null && prevCount !== null) {
-    const blCont = baselineStep.prevCount > 0
-      ? (baselineStep.count / baselineStep.prevCount) * 100
-      : 0;
-    // Higher continuation is better
-    contDiffHtml = renderDiffBadge(contPct, blCont, true);
-  }
-
-  let contHtml = "";
-  if (prevCount !== null) {
-    contHtml = `
-      <div class="funnel-step-dropoff-section">
-        <div class="funnel-step-dropoff-header">
-          <span class="funnel-step-dropoff-label">Continued from previous step</span>
-          <span class="funnel-step-dropoff-value">${contPct.toFixed(1)}% <span class="funnel-step-dropoff-count">(${fmtNum(count)})</span></span>
+    html += `<div class="funnel-flow-step">
+      <div class="funnel-flow-step-main">
+        <div class="funnel-flow-label">${FUNNEL_STEPS[i].label}</div>
+        <div class="funnel-flow-values">
+          <span class="funnel-flow-count">${fmtNum(step.count)}</span>
+          <span class="funnel-flow-pct">${step.pctOfAll.toFixed(1)}%</span>
         </div>
-        ${contDiffHtml ? `<div class="funnel-step-dropoff-diff">${contDiffHtml}</div>` : ""}
+      </div>
+      <div class="funnel-flow-bar"><div class="funnel-flow-bar-fill" style="width:${barWidth}%"></div></div>`;
+
+    // Arrow connector with step conversion
+    if (i < FUNNEL_STEPS.length - 1) {
+      const next = steps[i + 1];
+      html += `<div class="funnel-flow-arrow">
+        <span class="funnel-flow-arrow-line"></span>
+        <span class="funnel-flow-conv">${next.stepConv.toFixed(1)}%</span>
       </div>`;
+    }
+
+    html += `</div>`;
+  }
+  html += `</div></div>`;
+
+  compareGrid.className = "";
+  compareGrid.innerHTML = html;
+}
+
+// ── Compare table funnel ────────────────────────────
+function renderFunnelTable(pagesToRender, allSteps) {
+  const baseSteps = allSteps[0];
+  const colCount = pagesToRender.length;
+
+  // Find biggest drop vs baseline
+  let worstStepIdx = -1;
+  let worstDelta = 0;
+  if (colCount === 2) {
+    for (let i = 1; i < FUNNEL_STEPS.length; i++) {
+      const delta = allSteps[1][i].stepConv - baseSteps[i].stepConv;
+      if (delta < worstDelta) {
+        worstDelta = delta;
+        worstStepIdx = i;
+      }
+    }
   }
 
-  const barGradient = color
-    ? `background: linear-gradient(90deg, ${color.accent}, ${color.accent2})`
-    : `background: linear-gradient(90deg, var(--accent), var(--accent2))`;
+  // Header row with page names
+  let html = `<div class="ftable">`;
 
-  return `
-    <div class="funnel-step">
-      <div class="funnel-step-headline">${label} — ${fmtNum(count)}</div>
-      ${prevCount !== null ? `<div class="funnel-step-sessions-line">${pct.toFixed(1)}% of all sessions${avgPct !== null ? ` (vs avg ${avgPct.toFixed(1)}%)` : ""}</div>` : ""}
-      <div class="funnel-step-bar">
-        <div class="funnel-step-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%; ${barGradient}"></div>
-      </div>
-      ${contHtml}
+  // Page header cards
+  html += `<div class="ftable-headers">`;
+  html += `<div class="ftable-step-label"></div>`; // empty for step column
+  pagesToRender.forEach((page, idx) => {
+    const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}">&times;</button>` : "";
+    const badge = idx === 0 ? `<span class="funnel-baseline-badge">A</span>` : `<span class="funnel-compare-badge">B</span>`;
+    html += `<div class="ftable-page-header">
+      ${badge} ${esc(page.name)} ${removeBtn}
+      <div class="ftable-page-url">${esc(page.url)}</div>
     </div>`;
+  });
+  if (colCount === 2) {
+    html += `<div class="ftable-delta-header">Change</div>`;
+  }
+  html += `</div>`;
+
+  // Funnel rows
+  for (let i = 0; i < FUNNEL_STEPS.length; i++) {
+    const isWorst = i === worstStepIdx;
+    html += `<div class="ftable-row${isWorst ? " ftable-row-worst" : ""}">`;
+    html += `<div class="ftable-step-label">
+      ${FUNNEL_STEPS[i].label}
+      ${isWorst ? '<span class="ftable-worst-flag">Biggest gap</span>' : ""}
+    </div>`;
+
+    pagesToRender.forEach((_, idx) => {
+      const step = allSteps[idx][i];
+      html += `<div class="ftable-cell">`;
+      if (i === 0) {
+        // Sessions row: just count
+        html += `<span class="ftable-count">${fmtNum(step.count)}</span>`;
+      } else {
+        // Step conversion is primary
+        html += `<span class="ftable-conv">${step.stepConv.toFixed(1)}%</span>`;
+        html += `<span class="ftable-count-sub">${fmtNum(step.count)} users</span>`;
+      }
+      html += `</div>`;
+    });
+
+    // Delta column
+    if (colCount === 2 && i > 0) {
+      const a = allSteps[0][i].stepConv;
+      const b = allSteps[1][i].stepConv;
+      const ppDiff = b - a;
+      const isGood = ppDiff > 0;
+      const sign = ppDiff > 0 ? "+" : "";
+      const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (isGood ? "diff-good" : "diff-bad");
+      const arrow = ppDiff > 0 ? "&#9650;" : ppDiff < 0 ? "&#9660;" : "";
+      html += `<div class="ftable-cell ftable-delta">
+        <span class="diff-badge ${cls}">${arrow} ${sign}${ppDiff.toFixed(1)}pp</span>
+      </div>`;
+    } else if (colCount === 2 && i === 0) {
+      const a = allSteps[0][0].count;
+      const b = allSteps[1][0].count;
+      const diff = b - a;
+      const sign = diff > 0 ? "+" : "";
+      const cls = diff > 0 ? "diff-good" : diff < 0 ? "diff-bad" : "diff-neutral";
+      html += `<div class="ftable-cell ftable-delta">
+        <span class="diff-badge ${cls}">${sign}${fmtNum(diff)}</span>
+      </div>`;
+    }
+
+    html += `</div>`;
+
+    // Funnel bar spanning full width
+    html += `<div class="ftable-bar-row">`;
+    html += `<div class="ftable-step-label"></div>`;
+    pagesToRender.forEach((_, idx) => {
+      const step = allSteps[idx][i];
+      const barWidth = Math.max(3, step.pctOfAll);
+      const barColor = idx === 0 ? "var(--accent)" : "var(--accent2)";
+      html += `<div class="ftable-cell"><div class="ftable-bar"><div class="ftable-bar-fill" style="width:${barWidth}%;background:${barColor}"></div></div></div>`;
+    });
+    if (colCount === 2) html += `<div class="ftable-cell"></div>`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+
+  compareGrid.className = "";
+  compareGrid.innerHTML = html;
+  const ftableEl = compareGrid.querySelector(".ftable");
+  if (ftableEl) ftableEl.style.setProperty("--ftable-cols", colCount);
 }
 
 // Renders a diff badge showing absolute diff (pp) and relative % change

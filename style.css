@@ -431,28 +431,22 @@ ul { list-style: none; }
   background: var(--bg);
 }
 
-/* Funnel view */
-#funnel {
+/* ── Single funnel view ──────────────────────────── */
+.funnel-single {
   display: grid;
-  gap: 18px;
+  gap: 20px;
+  max-width: 560px;
 }
-.funnel-header {
+.funnel-single-header {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 18px;
   display: grid;
-  gap: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.25);
-}
-.funnel-title {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text2);
+  gap: 12px;
 }
 .funnel-page-name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text);
 }
@@ -466,15 +460,15 @@ ul { list-style: none; }
 .funnel-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 .funnel-kpi {
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 .funnel-kpi-value {
   font-size: 18px;
@@ -482,85 +476,232 @@ ul { list-style: none; }
   color: var(--text);
 }
 .funnel-kpi-label {
-  font-size: 11px;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
-.funnel-steps {
-  display: grid;
-  gap: 12px;
-}
-.funnel-step {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: grid;
-  gap: 8px;
-}
-/* (step label replaced by funnel-step-headline) */
-/* (step metrics consolidated into single-line format) */
-.funnel-step-dropoff-section {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  display: grid;
-  gap: 6px;
-}
-.funnel-step-dropoff-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.funnel-step-dropoff-label {
-  text-transform: uppercase;
-  letter-spacing: .06em;
   font-size: 10px;
   color: var(--text2);
-  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
 }
-.funnel-step-dropoff-value {
-  color: var(--text);
-  font-weight: 700;
-  font-size: 14px;
+
+/* Vertical flow funnel */
+.funnel-flow {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
 }
-.funnel-step-dropoff-count {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text2);
-}
-.funnel-step-dropoff-diff {
+.funnel-flow-step { display: grid; gap: 6px; }
+.funnel-flow-step-main {
   display: flex;
-  gap: 6px;
+  justify-content: space-between;
+  align-items: baseline;
 }
-.funnel-step-dropoff-diff .diff-badge {
-  font-size: 12px;
-  padding: 3px 10px;
+.funnel-flow-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
-.funnel-step-headline {
+.funnel-flow-values {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.funnel-flow-count {
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
 }
-.funnel-step-sessions-line {
-  font-size: 12px;
+.funnel-flow-pct {
+  font-size: 11px;
   color: var(--text2);
 }
-.funnel-step-bar {
-  height: 10px;
+.funnel-flow-bar {
+  height: 8px;
   background: var(--surface2);
   border-radius: 999px;
   overflow: hidden;
-  border: 1px solid var(--border);
 }
-.funnel-step-bar-fill {
+.funnel-flow-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent2));
   border-radius: inherit;
-  width: 2%;
   transition: width .3s ease;
+}
+.funnel-flow-arrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 6px 12px;
+}
+.funnel-flow-arrow-line {
+  width: 2px;
+  height: 16px;
+  background: var(--border);
+  border-radius: 1px;
+}
+.funnel-flow-conv {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent2);
+}
+
+/* ── Funnel comparison table ────────────────────── */
+.ftable {
+  display: grid;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ftable-headers {
+  display: grid;
+  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface2);
+}
+.ftable-page-header {
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ftable-page-url {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.ftable-delta-header {
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-left: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  min-width: 100px;
+}
+.ftable-row {
+  display: grid;
+  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.ftable-row:hover { background: var(--surface2); }
+.ftable-row-worst {
+  background: rgba(248, 113, 113, .06);
+}
+.ftable-row-worst:hover {
+  background: rgba(248, 113, 113, .1);
+}
+.ftable-bar-row {
+  display: grid;
+  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.ftable-bar-row:last-child { border-bottom: none; }
+.ftable-step-label {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.ftable-worst-flag {
+  font-size: 10px;
+  color: var(--red);
+  font-weight: 600;
+}
+.ftable-cell {
+  padding: 10px 14px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.ftable-conv {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ftable-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ftable-count-sub {
+  font-size: 11px;
+  color: var(--text2);
+}
+.ftable-delta {
+  min-width: 100px;
+}
+.ftable-bar {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ftable-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width .3s ease;
+}
+
+/* Baseline / compare badges */
+.funnel-baseline-badge, .funnel-compare-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.funnel-baseline-badge {
+  background: rgba(108, 92, 231, .15);
+  color: var(--accent2);
+}
+.funnel-compare-badge {
+  background: rgba(251, 191, 36, .15);
+  color: var(--yellow);
+}
+
+.funnel-remove-btn {
+  float: right;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all .15s;
+  margin-left: 6px;
+}
+.funnel-remove-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
 }
 
 /* ── Settings modal ──────────────────────────────── */
@@ -724,56 +865,9 @@ ul { list-style: none; }
   border-color: var(--accent2);
 }
 
-/* Compare grid layout */
-#compare-grid {
-  display: grid;
-  gap: 18px;
-}
-#compare-grid.compare-grid-multi {
-  grid-template-columns: repeat(var(--col-count, 1), minmax(0, 1fr));
-  align-items: start;
-}
+/* (old compare grid / funnel column styles removed — replaced by ftable) */
 
-/* Funnel column in compare */
-.funnel-column {
-  display: grid;
-  gap: 18px;
-  border-radius: 14px;
-  animation: card-in .3s ease-out both;
-}
-
-/* Align funnel steps across columns */
-#compare-grid.compare-grid-multi .funnel-column {
-  grid-template-rows: auto auto;
-}
-#compare-grid.compare-grid-multi .funnel-header {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-}
-#compare-grid.compare-grid-multi .funnel-kpis {
-  margin-top: auto;
-}
-
-.funnel-remove-btn {
-  float: right;
-  width: 24px;
-  height: 24px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface2);
-  color: var(--text2);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  transition: all .15s;
-}
-.funnel-remove-btn:hover {
-  color: var(--red);
-  border-color: var(--red);
-}
+/* (old compare grid styles cleaned up) */
 
 /* ── Diff badges ─────────────────────────────────── */
 .diff-badge {
@@ -798,20 +892,7 @@ ul { list-style: none; }
   color: var(--text2);
   background: var(--surface2);
 }
-/* (step-level diffs now rendered inside dropoff section) */
-.funnel-baseline-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: rgba(108, 92, 231, .15);
-  color: var(--accent2);
-  margin-left: 8px;
-  vertical-align: middle;
-}
+/* (old diff/badge styles moved to ftable section) */
 
 /* ── Card entrance animation ─────────────────────── */
 @keyframes card-in {
@@ -836,9 +917,14 @@ ul { list-style: none; }
   #frame-container { padding: 8px; }
   .frame-url-bar { font-size: 11px; }
   .funnel-kpis { grid-template-columns: 1fr; }
-  #compare-grid.compare-grid-multi {
-    grid-template-columns: 1fr;
+  .ftable-headers, .ftable-row, .ftable-bar-row {
+    grid-template-columns: 80px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
   }
+  .ftable-step-label { font-size: 11px; padding: 8px 8px; }
+  .ftable-cell { padding: 8px; }
+  .ftable-conv { font-size: 14px; }
+  .date-range { gap: 4px; }
+  .date-range input[type="date"] { font-size: 11px; padding: 4px 6px; }
   .modal-content { padding: 20px; }
   .mapping-grid { grid-template-columns: 1fr; }
 }
