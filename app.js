@@ -4,17 +4,9 @@
    an interactive dashboard with iframe page preview.
    ═══════════════════════════════════════════════════ */
 
-// ── Default sheet URLs by period ─────────────────────
-const SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub";
-const SHEET_GIDS = {
-  yesterday: "592398799",
-  "7d": "1777172587",
-};
-function sheetUrlForPeriod(period) {
-  const gid = SHEET_GIDS[period] || SHEET_GIDS.yesterday;
-  return `${SHEET_BASE}?gid=${gid}&single=true&output=csv`;
-}
-const DEFAULT_SHEET_URL = sheetUrlForPeriod("yesterday");
+// ── Default sheet URL (7d daily data) ────────────────
+const DEFAULT_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCpN6f4J91aFKu9PFdPyqkWxc_q96mYif3JyCY9zI2C4VmoNHULLTvpa-XDOS_fkV9cIn2_0RfYZ_E/pub?gid=1777172587&single=true&output=csv";
 
 // ── Password gate ───────────────────────────────────
 const PASSWORD = "fdparty";
@@ -53,12 +45,12 @@ const PASSWORD = "fdparty";
 })();
 
 // ── State ───────────────────────────────────────────
-let pages = [];
+let rawRows = [];  // all daily rows from sheet
+let pages = [];    // aggregated by landing page for selected date range
 let activePage = null;
 let selectedPages = []; // compare mode selections
 let compareMode = false;
 let lastFiltered = [];
-let activePeriod = "yesterday";
 
 // ── DOM refs ────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -74,6 +66,8 @@ const loadingOverlay = $("#loading-overlay");
 const loadingMessage = $("#loading-message");
 const compareBtn = $("#compare-btn");
 const compareGrid = $("#compare-grid");
+const dateStartEl = $("#date-start");
+const dateEndEl = $("#date-end");
 
 // ── Init ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -101,17 +95,9 @@ function bindEvents() {
   // Compare mode toggle
   compareBtn.addEventListener("click", toggleCompareMode);
 
-  // Period toggle
-  document.querySelectorAll(".period-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const period = btn.dataset.period;
-      if (period === activePeriod) return;
-      activePeriod = period;
-      document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      loadData();
-    });
-  });
+  // Date range
+  dateStartEl.addEventListener("change", () => applyDateRange());
+  dateEndEl.addEventListener("change", () => applyDateRange());
 
   // Settings
   $("#settings-btn").addEventListener("click", () => settingsModal.classList.remove("hidden"));
@@ -203,7 +189,7 @@ async function loadData() {
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
-  let sheetUrl = sheetUrlForPeriod(activePeriod);
+  let sheetUrl = DEFAULT_SHEET_URL;
   let colMap = {
     day: "day",
     url: "landing_page_path",
@@ -220,9 +206,6 @@ async function loadData() {
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      // Only use custom URL if it differs from the default base pattern
-      const isCustomUrl = s.sheetUrl && !s.sheetUrl.startsWith(SHEET_BASE);
-      if (isCustomUrl) sheetUrl = s.sheetUrl;
       if (s.colUrl) colMap.url = s.colUrl;
       if (s.colName) colMap.name = s.colName;
       if (s.colCvr) colMap.cvr = s.colCvr;
@@ -237,18 +220,29 @@ async function loadData() {
     const requestUrl = withCacheBust(sheetUrl);
     const resp = await fetch(requestUrl, {
       cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const csv = await resp.text();
-    pages = parseCSV(csv, colMap, activePeriod);
-    console.log(`[LP Explorer] Period: ${activePeriod}, URL: ${sheetUrl}`);
-    toast(`Loaded ${pages.length} pages (${activePeriod === "7d" ? "Last 7 Days" : "Yesterday"})`);
+    rawRows = parseCSVRows(csv, colMap);
+
+    // Set date range from data
+    const dates = rawRows.map((r) => r.day).filter(Boolean).sort();
+    if (dates.length) {
+      const minDate = dates[0];
+      const maxDate = dates[dates.length - 1];
+      dateStartEl.min = minDate;
+      dateStartEl.max = maxDate;
+      dateEndEl.min = minDate;
+      dateEndEl.max = maxDate;
+      dateStartEl.value = minDate;
+      dateEndEl.value = maxDate;
+    }
+
+    applyDateRange();
   } catch (err) {
     toast(`Error loading sheet: ${err.message}`);
+    rawRows = [];
     pages = [];
   } finally {
     setLoading(false);
@@ -257,22 +251,46 @@ async function loadData() {
   renderList();
 }
 
-// ── CSV parser ──────────────────────────────────────
-function parseCSV(text, colMap, period) {
+// ── Date range aggregation ──────────────────────────
+function applyDateRange() {
+  const startDate = dateStartEl.value;
+  const endDate = dateEndEl.value;
+
+  // Filter rows by date range
+  const filtered = rawRows.filter((r) => {
+    if (!r.day) return true;
+    return r.day >= startDate && r.day <= endDate;
+  });
+
+  // Aggregate by landing page path
+  pages = aggregateByPage(filtered);
+
+  const dayCount = new Set(filtered.map((r) => r.day).filter(Boolean)).size;
+  toast(`Loaded ${pages.length} pages across ${dayCount} day${dayCount !== 1 ? "s" : ""}`);
+
+  activePage = null;
+  selectedPages = [];
+  previewWrap.classList.add("hidden");
+  renderList();
+}
+
+// ── CSV parser (returns raw daily rows) ─────────────
+function parseCSVRows(text, colMap) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
 
   const headers = parseCSVLine(lines[0]);
-  const idxDay = headers.findIndex((h) => h.toLowerCase() === colMap.day.toLowerCase());
-  const idxUrl = headers.findIndex((h) => h.toLowerCase() === colMap.url.toLowerCase());
-  const idxName = headers.findIndex((h) => h.toLowerCase() === colMap.name.toLowerCase());
-  const idxCvr = headers.findIndex((h) => h.toLowerCase() === colMap.cvr.toLowerCase());
-  const idxBounce = headers.findIndex((h) => h.toLowerCase() === colMap.bounce.toLowerCase());
-  const idxSessions = headers.findIndex((h) => h.toLowerCase() === colMap.sessions.toLowerCase());
-  const idxAddedToCart = headers.findIndex((h) => h.toLowerCase() === colMap.addedToCart.toLowerCase());
-  const idxReachedCheckout = headers.findIndex((h) => h.toLowerCase() === colMap.reachedCheckout.toLowerCase());
-  const idxCompletedCheckout = headers.findIndex((h) => h.toLowerCase() === colMap.completedCheckout.toLowerCase());
-  const idxSessionsCompleted = headers.findIndex((h) => h.toLowerCase() === colMap.sessionsCompleted.toLowerCase());
+  const idx = (key) => headers.findIndex((h) => h.toLowerCase() === colMap[key].toLowerCase());
+  const idxDay = idx("day");
+  const idxUrl = idx("url");
+  const idxName = idx("name");
+  const idxCvr = idx("cvr");
+  const idxBounce = idx("bounce");
+  const idxSessions = idx("sessions");
+  const idxAddedToCart = idx("addedToCart");
+  const idxReachedCheckout = idx("reachedCheckout");
+  const idxCompletedCheckout = idx("completedCheckout");
+  const idxSessionsCompleted = idx("sessionsCompleted");
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
@@ -280,7 +298,7 @@ function parseCSV(text, colMap, period) {
     const day = idxDay >= 0 ? (cols[idxDay] || "").trim() : "";
     const path = idxUrl >= 0 ? (cols[idxUrl] || "").trim() : "";
     if (!path) continue;
-    if (day && day.toLowerCase() === "day") continue; // skip duplicate header rows
+    if (day && day.toLowerCase() === "day") continue;
 
     rows.push({
       day,
@@ -295,33 +313,48 @@ function parseCSV(text, colMap, period) {
       sessionsCompleted: idxSessionsCompleted >= 0 ? parseNum(cols[idxSessionsCompleted]) : 0,
     });
   }
+  return rows;
+}
 
-  if (!rows.length) return [];
-
-  // If a day column exists and we're on yesterday, only keep the latest day
-  // For 7d period, use all rows (already aggregated in the sheet)
-  let latestRows = rows;
-  if (idxDay >= 0 && period !== "7d") {
-    const latestDay = rows
-      .map((r) => r.day)
-      .filter(Boolean)
-      .sort()
-      .slice(-1)[0];
-    if (latestDay) latestRows = rows.filter((r) => r.day === latestDay);
+function aggregateByPage(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    let agg = map.get(r.path);
+    if (!agg) {
+      agg = {
+        path: r.path,
+        name: r.name,
+        sessions: 0,
+        sessionsCompleted: 0,
+        // weighted accumulators
+        wCvr: 0, wBounce: 0, wAtc: 0, wReach: 0, wCompleted: 0,
+      };
+      map.set(r.path, agg);
+    }
+    agg.sessions += r.sessions;
+    agg.sessionsCompleted += r.sessionsCompleted;
+    agg.wCvr += r.cvr * r.sessions;
+    agg.wBounce += r.bounce * r.sessions;
+    agg.wAtc += r.addedToCartRate * r.sessions;
+    agg.wReach += r.reachedCheckoutRate * r.sessions;
+    agg.wCompleted += r.completedCheckoutRate * r.sessions;
   }
 
   const baseUrl = "https://firstday.com";
-  return latestRows.map((r) => ({
-    url: baseUrl + normalizePath(r.path),
-    name: r.name,
-    cvr: r.cvr,
-    bounce: r.bounce,
-    sessions: r.sessions,
-    addedToCartRate: r.addedToCartRate,
-    reachedCheckoutRate: r.reachedCheckoutRate,
-    completedCheckoutRate: r.completedCheckoutRate,
-    sessionsCompleted: r.sessionsCompleted,
-  }));
+  return Array.from(map.values()).map((a) => {
+    const s = a.sessions || 1;
+    return {
+      url: baseUrl + normalizePath(a.path),
+      name: a.name,
+      sessions: a.sessions,
+      sessionsCompleted: a.sessionsCompleted,
+      cvr: a.wCvr / s,
+      bounce: a.wBounce / s,
+      addedToCartRate: a.wAtc / s,
+      reachedCheckoutRate: a.wReach / s,
+      completedCheckoutRate: a.wCompleted / s,
+    };
+  });
 }
 
 function normalizePath(path) {

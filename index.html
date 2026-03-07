@@ -40,9 +40,10 @@
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect y="3" width="20" height="2" rx="1" fill="currentColor"/><rect y="9" width="20" height="2" rx="1" fill="currentColor"/><rect y="15" width="20" height="2" rx="1" fill="currentColor"/></svg>
         </button>
         <h1 class="logo">Meta LPs Explorer</h1>
-        <div class="period-toggle" id="period-toggle">
-          <button class="period-btn active" data-period="yesterday">Yesterday</button>
-          <button class="period-btn" data-period="7d">Last 7 Days</button>
+        <div class="date-range" id="date-range">
+          <input type="date" id="date-start" aria-label="Start date">
+          <span class="date-range-sep">to</span>
+          <input type="date" id="date-end" aria-label="End date">
         </div>
       </div>
       <div class="header-center">

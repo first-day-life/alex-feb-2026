@@ -128,32 +128,31 @@ ul { list-style: none; }
   background-clip: text;
   letter-spacing: -.3px;
 }
-/* Period toggle */
-.period-toggle {
+/* Date range */
+.date-range {
   display: flex;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
 }
-.period-btn {
-  padding: 5px 12px;
+.date-range input[type="date"] {
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 600;
-  border: none;
+  font-family: inherit;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: transparent;
-  color: var(--text2);
-  transition: all .15s;
-  white-space: nowrap;
-}
-.period-btn:hover {
+  background: var(--surface2);
   color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+  color-scheme: dark;
 }
-.period-btn.active {
-  background: var(--accent);
-  color: #fff;
+.date-range input[type="date"]:focus {
+  border-color: var(--accent);
+}
+.date-range-sep {
+  font-size: 11px;
+  color: var(--text2);
 }
 
 .icon-btn {
