@@ -546,18 +546,22 @@ ul { list-style: none; }
 
 /* ── Funnel comparison table ────────────────────── */
 .ftable {
-  display: grid;
-  gap: 0;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
+  table-layout: fixed;
 }
-.ftable-headers {
-  display: grid;
-  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
+.ftable thead { background: var(--surface2); }
+.ftable th, .ftable td {
+  text-align: left;
+  vertical-align: middle;
+}
+.ftable thead th {
   border-bottom: 2px solid var(--border);
-  background: var(--surface2);
 }
 .ftable-page-header {
   padding: 12px 14px;
@@ -565,7 +569,6 @@ ul { list-style: none; }
   font-weight: 700;
   color: var(--text);
   border-left: 1px solid var(--border);
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -586,76 +589,64 @@ ul { list-style: none; }
   text-transform: uppercase;
   letter-spacing: .06em;
   border-left: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  min-width: 100px;
+  width: 110px;
 }
-.ftable-row {
-  display: grid;
-  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
+.ftable-row td {
   border-bottom: 1px solid var(--border);
   transition: background .1s;
 }
-.ftable-row:hover { background: var(--surface2); }
-.ftable-row-worst {
+.ftable-row:hover td { background: var(--surface2); }
+.ftable-row-worst td {
   background: rgba(248, 113, 113, .06);
 }
-.ftable-row-worst:hover {
+.ftable-row-worst:hover td {
   background: rgba(248, 113, 113, .1);
 }
-.ftable-bar-row {
-  display: grid;
-  grid-template-columns: 140px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.ftable-bar-row:last-child { border-bottom: none; }
 .ftable-step-label {
-  padding: 10px 14px;
+  padding: 12px 14px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text2);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
+  width: 140px;
 }
 .ftable-worst-flag {
+  display: block;
   font-size: 10px;
   color: var(--red);
   font-weight: 600;
+  margin-top: 3px;
 }
 .ftable-cell {
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
 }
 .ftable-conv {
+  display: block;
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
 }
 .ftable-count {
+  display: block;
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
 }
 .ftable-count-sub {
+  display: block;
   font-size: 11px;
   color: var(--text2);
+  margin-top: 2px;
 }
 .ftable-delta {
-  min-width: 100px;
+  width: 110px;
 }
 .ftable-bar {
   height: 6px;
   background: var(--surface2);
   border-radius: 999px;
   overflow: hidden;
+  margin-top: 8px;
 }
 .ftable-bar-fill {
   height: 100%;
@@ -917,12 +908,10 @@ ul { list-style: none; }
   #frame-container { padding: 8px; }
   .frame-url-bar { font-size: 11px; }
   .funnel-kpis { grid-template-columns: 1fr; }
-  .ftable-headers, .ftable-row, .ftable-bar-row {
-    grid-template-columns: 80px repeat(var(--ftable-cols, 2), minmax(0, 1fr)) auto;
-  }
-  .ftable-step-label { font-size: 11px; padding: 8px 8px; }
+  .ftable-step-label { font-size: 11px; padding: 8px; width: 80px; }
   .ftable-cell { padding: 8px; }
   .ftable-conv { font-size: 14px; }
+  .ftable-delta-header, .ftable-delta { width: 80px; }
   .date-range { gap: 4px; }
   .date-range input[type="date"] { font-size: 11px; padding: 4px 6px; }
   .modal-content { padding: 20px; }

@@ -671,92 +671,63 @@ function renderFunnelTable(pagesToRender, allSteps) {
     }
   }
 
-  // Header row with page names
-  let html = `<div class="ftable">`;
+  const hasDelta = colCount === 2;
+  const totalCols = colCount + 1 + (hasDelta ? 1 : 0); // step label + pages + delta
 
-  // Page header cards
-  html += `<div class="ftable-headers">`;
-  html += `<div class="ftable-step-label"></div>`; // empty for step column
+  let html = `<table class="ftable"><thead><tr>`;
+  html += `<th class="ftable-step-label"></th>`;
   pagesToRender.forEach((page, idx) => {
     const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}">&times;</button>` : "";
     const badge = idx === 0 ? `<span class="funnel-baseline-badge">A</span>` : `<span class="funnel-compare-badge">B</span>`;
-    html += `<div class="ftable-page-header">
-      ${badge} ${esc(page.name)} ${removeBtn}
-      <div class="ftable-page-url">${esc(page.url)}</div>
-    </div>`;
+    html += `<th class="ftable-page-header">${badge} ${esc(page.name)} ${removeBtn}<div class="ftable-page-url">${esc(page.url)}</div></th>`;
   });
-  if (colCount === 2) {
-    html += `<div class="ftable-delta-header">Change</div>`;
-  }
-  html += `</div>`;
+  if (hasDelta) html += `<th class="ftable-delta-header">Change</th>`;
+  html += `</tr></thead><tbody>`;
 
-  // Funnel rows
   for (let i = 0; i < FUNNEL_STEPS.length; i++) {
     const isWorst = i === worstStepIdx;
-    html += `<div class="ftable-row${isWorst ? " ftable-row-worst" : ""}">`;
-    html += `<div class="ftable-step-label">
-      ${FUNNEL_STEPS[i].label}
-      ${isWorst ? '<span class="ftable-worst-flag">Biggest gap</span>' : ""}
-    </div>`;
+    html += `<tr class="ftable-row${isWorst ? " ftable-row-worst" : ""}">`;
+    html += `<td class="ftable-step-label">${FUNNEL_STEPS[i].label}${isWorst ? '<span class="ftable-worst-flag">Biggest gap</span>' : ""}</td>`;
 
-    pagesToRender.forEach((_, idx) => {
-      const step = allSteps[idx][i];
-      html += `<div class="ftable-cell">`;
-      if (i === 0) {
-        // Sessions row: just count
-        html += `<span class="ftable-count">${fmtNum(step.count)}</span>`;
-      } else {
-        // Step conversion is primary
-        html += `<span class="ftable-conv">${step.stepConv.toFixed(1)}%</span>`;
-        html += `<span class="ftable-count-sub">${fmtNum(step.count)} users</span>`;
-      }
-      html += `</div>`;
-    });
-
-    // Delta column
-    if (colCount === 2 && i > 0) {
-      const a = allSteps[0][i].stepConv;
-      const b = allSteps[1][i].stepConv;
-      const ppDiff = b - a;
-      const isGood = ppDiff > 0;
-      const sign = ppDiff > 0 ? "+" : "";
-      const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (isGood ? "diff-good" : "diff-bad");
-      const arrow = ppDiff > 0 ? "&#9650;" : ppDiff < 0 ? "&#9660;" : "";
-      html += `<div class="ftable-cell ftable-delta">
-        <span class="diff-badge ${cls}">${arrow} ${sign}${ppDiff.toFixed(1)}pp</span>
-      </div>`;
-    } else if (colCount === 2 && i === 0) {
-      const a = allSteps[0][0].count;
-      const b = allSteps[1][0].count;
-      const diff = b - a;
-      const sign = diff > 0 ? "+" : "";
-      const cls = diff > 0 ? "diff-good" : diff < 0 ? "diff-bad" : "diff-neutral";
-      html += `<div class="ftable-cell ftable-delta">
-        <span class="diff-badge ${cls}">${sign}${fmtNum(diff)}</span>
-      </div>`;
-    }
-
-    html += `</div>`;
-
-    // Funnel bar spanning full width
-    html += `<div class="ftable-bar-row">`;
-    html += `<div class="ftable-step-label"></div>`;
     pagesToRender.forEach((_, idx) => {
       const step = allSteps[idx][i];
       const barWidth = Math.max(3, step.pctOfAll);
       const barColor = idx === 0 ? "var(--accent)" : "var(--accent2)";
-      html += `<div class="ftable-cell"><div class="ftable-bar"><div class="ftable-bar-fill" style="width:${barWidth}%;background:${barColor}"></div></div></div>`;
+      html += `<td class="ftable-cell">`;
+      if (i === 0) {
+        html += `<span class="ftable-count">${fmtNum(step.count)}</span>`;
+      } else {
+        html += `<span class="ftable-conv">${step.stepConv.toFixed(1)}%</span>`;
+        html += `<span class="ftable-count-sub">${fmtNum(step.count)} users</span>`;
+      }
+      html += `<div class="ftable-bar"><div class="ftable-bar-fill" style="width:${barWidth}%;background:${barColor}"></div></div>`;
+      html += `</td>`;
     });
-    if (colCount === 2) html += `<div class="ftable-cell"></div>`;
-    html += `</div>`;
+
+    if (hasDelta) {
+      if (i > 0) {
+        const a = allSteps[0][i].stepConv;
+        const b = allSteps[1][i].stepConv;
+        const ppDiff = b - a;
+        const sign = ppDiff > 0 ? "+" : "";
+        const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (ppDiff > 0 ? "diff-good" : "diff-bad");
+        const arrow = ppDiff > 0 ? "&#9650;" : ppDiff < 0 ? "&#9660;" : "";
+        html += `<td class="ftable-cell ftable-delta"><span class="diff-badge ${cls}">${arrow} ${sign}${ppDiff.toFixed(1)}pp</span></td>`;
+      } else {
+        const diff = allSteps[1][0].count - allSteps[0][0].count;
+        const sign = diff > 0 ? "+" : "";
+        const cls = diff > 0 ? "diff-good" : diff < 0 ? "diff-bad" : "diff-neutral";
+        html += `<td class="ftable-cell ftable-delta"><span class="diff-badge ${cls}">${sign}${fmtNum(diff)}</span></td>`;
+      }
+    }
+
+    html += `</tr>`;
   }
 
-  html += `</div>`;
+  html += `</tbody></table>`;
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
-  const ftableEl = compareGrid.querySelector(".ftable");
-  if (ftableEl) ftableEl.style.setProperty("--ftable-cols", colCount);
 }
 
 // Renders a diff badge showing absolute diff (pp) and relative % change
