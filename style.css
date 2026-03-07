@@ -544,6 +544,60 @@ ul { list-style: none; }
   color: var(--accent2);
 }
 
+/* ── Funnel view toggle ─────────────────────────── */
+.ftable-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ftable-view-toggle {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.ftable-view-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+}
+.ftable-view-btn:hover { color: var(--text); }
+.ftable-view-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.ftable-view-hint {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* Drop-off specific */
+.ftable-dropoff-val {
+  color: var(--red) !important;
+}
+.funnel-flow-arrow-drop {
+  gap: 6px !important;
+}
+.funnel-flow-drop {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
+}
+.funnel-flow-drop-count {
+  font-size: 11px;
+  color: var(--text2);
+}
+
 /* ── Funnel comparison table ────────────────────── */
 .ftable {
   width: 100%;

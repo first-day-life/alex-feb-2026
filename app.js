@@ -51,6 +51,7 @@ let activePage = null;
 let selectedPages = []; // compare mode selections
 let compareMode = false;
 let lastFiltered = [];
+let funnelView = "conversion"; // "conversion" or "dropoff"
 
 // ── DOM refs ────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -566,13 +567,17 @@ function getStepData(page) {
     { count: purchaseCount, pctOfAll: purchasePct },
   ];
 
-  // Compute step conversion (from previous step)
+  // Compute step conversion and drop-off (from previous step)
   for (let i = 0; i < steps.length; i++) {
     if (i === 0) {
-      steps[i].stepConv = null; // no previous step
+      steps[i].stepConv = null;
+      steps[i].dropoff = null;
+      steps[i].dropCount = null;
     } else {
       const prev = steps[i - 1].count;
       steps[i].stepConv = prev > 0 ? (steps[i].count / prev) * 100 : 0;
+      steps[i].dropoff = prev > 0 ? ((prev - steps[i].count) / prev) * 100 : 0;
+      steps[i].dropCount = prev - steps[i].count;
     }
   }
   return steps;
@@ -610,6 +615,8 @@ function renderCompareGrid() {
 
 // ── Single page funnel ──────────────────────────────
 function renderSingleFunnel(page, steps) {
+  const isDropoff = funnelView === "dropoff";
+
   let html = `<div class="funnel-single">`;
   html += `<div class="funnel-single-header">
     <div class="funnel-page-name">${esc(page.name)}</div>
@@ -619,6 +626,14 @@ function renderSingleFunnel(page, steps) {
       <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(page.sessions)}</span><span class="funnel-kpi-label">Sessions</span></div>
       <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(steps[4].count)}</span><span class="funnel-kpi-label">Purchases</span></div>
     </div>
+  </div>`;
+
+  html += `<div class="ftable-toolbar">
+    <div class="ftable-view-toggle">
+      <button class="ftable-view-btn${!isDropoff ? " active" : ""}" data-view="conversion">Conversion</button>
+      <button class="ftable-view-btn${isDropoff ? " active" : ""}" data-view="dropoff">Drop-off</button>
+    </div>
+    <div class="ftable-view-hint">${isDropoff ? "% lost at each step" : "% continuing to next step"}</div>
   </div>`;
 
   html += `<div class="funnel-flow">`;
@@ -636,13 +651,21 @@ function renderSingleFunnel(page, steps) {
       </div>
       <div class="funnel-flow-bar"><div class="funnel-flow-bar-fill" style="width:${barWidth}%"></div></div>`;
 
-    // Arrow connector with step conversion
+    // Arrow connector
     if (i < FUNNEL_STEPS.length - 1) {
       const next = steps[i + 1];
-      html += `<div class="funnel-flow-arrow">
-        <span class="funnel-flow-arrow-line"></span>
-        <span class="funnel-flow-conv">${next.stepConv.toFixed(1)}%</span>
-      </div>`;
+      if (isDropoff) {
+        html += `<div class="funnel-flow-arrow funnel-flow-arrow-drop">
+          <span class="funnel-flow-arrow-line"></span>
+          <span class="funnel-flow-drop">${next.dropoff.toFixed(1)}% lost</span>
+          <span class="funnel-flow-drop-count">${fmtNum(next.dropCount)}</span>
+        </div>`;
+      } else {
+        html += `<div class="funnel-flow-arrow">
+          <span class="funnel-flow-arrow-line"></span>
+          <span class="funnel-flow-conv">${next.stepConv.toFixed(1)}%</span>
+        </div>`;
+      }
     }
 
     html += `</div>`;
@@ -651,6 +674,14 @@ function renderSingleFunnel(page, steps) {
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
+
+  // Bind view toggle
+  compareGrid.querySelectorAll(".ftable-view-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      funnelView = btn.dataset.view;
+      renderCompareGrid();
+    });
+  });
 }
 
 // ── Compare table funnel ────────────────────────────
@@ -672,10 +703,19 @@ function renderFunnelTable(pagesToRender, allSteps) {
   }
 
   const hasDelta = colCount === 2;
-  const totalCols = colCount + 1 + (hasDelta ? 1 : 0); // step label + pages + delta
+  const isDropoff = funnelView === "dropoff";
 
-  let html = `<table class="ftable"><thead><tr>`;
-  html += `<th class="ftable-step-label"></th>`;
+  // View toggle
+  let html = `<div class="ftable-toolbar">
+    <div class="ftable-view-toggle">
+      <button class="ftable-view-btn${!isDropoff ? " active" : ""}" data-view="conversion">Conversion</button>
+      <button class="ftable-view-btn${isDropoff ? " active" : ""}" data-view="dropoff">Drop-off</button>
+    </div>
+    <div class="ftable-view-hint">${isDropoff ? "% lost at each step" : "% continuing to next step"}</div>
+  </div>`;
+
+  html += `<table class="ftable"><thead><tr>`;
+  html += `<th class="ftable-step-label">Step</th>`;
   pagesToRender.forEach((page, idx) => {
     const removeBtn = compareMode ? `<button class="funnel-remove-btn" data-idx="${idx}">&times;</button>` : "";
     const badge = idx === 0 ? `<span class="funnel-baseline-badge">A</span>` : `<span class="funnel-compare-badge">B</span>`;
@@ -696,6 +736,9 @@ function renderFunnelTable(pagesToRender, allSteps) {
       html += `<td class="ftable-cell">`;
       if (i === 0) {
         html += `<span class="ftable-count">${fmtNum(step.count)}</span>`;
+      } else if (isDropoff) {
+        html += `<span class="ftable-conv ftable-dropoff-val">${step.dropoff.toFixed(1)}%</span>`;
+        html += `<span class="ftable-count-sub">${fmtNum(step.dropCount)} lost</span>`;
       } else {
         html += `<span class="ftable-conv">${step.stepConv.toFixed(1)}%</span>`;
         html += `<span class="ftable-count-sub">${fmtNum(step.count)} users</span>`;
@@ -706,11 +749,20 @@ function renderFunnelTable(pagesToRender, allSteps) {
 
     if (hasDelta) {
       if (i > 0) {
-        const a = allSteps[0][i].stepConv;
-        const b = allSteps[1][i].stepConv;
+        let a, b, higherIsBetter;
+        if (isDropoff) {
+          a = allSteps[0][i].dropoff;
+          b = allSteps[1][i].dropoff;
+          higherIsBetter = false; // lower drop-off is better
+        } else {
+          a = allSteps[0][i].stepConv;
+          b = allSteps[1][i].stepConv;
+          higherIsBetter = true;
+        }
         const ppDiff = b - a;
         const sign = ppDiff > 0 ? "+" : "";
-        const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (ppDiff > 0 ? "diff-good" : "diff-bad");
+        const isGood = higherIsBetter ? ppDiff > 0 : ppDiff < 0;
+        const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (isGood ? "diff-good" : "diff-bad");
         const arrow = ppDiff > 0 ? "&#9650;" : ppDiff < 0 ? "&#9660;" : "";
         html += `<td class="ftable-cell ftable-delta"><span class="diff-badge ${cls}">${arrow} ${sign}${ppDiff.toFixed(1)}pp</span></td>`;
       } else {
@@ -728,6 +780,14 @@ function renderFunnelTable(pagesToRender, allSteps) {
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
+
+  // Bind view toggle
+  compareGrid.querySelectorAll(".ftable-view-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      funnelView = btn.dataset.view;
+      renderCompareGrid();
+    });
+  });
 }
 
 // Renders a diff badge showing absolute diff (pp) and relative % change
