@@ -600,6 +600,9 @@ function renderCompareGrid() {
     renderSingleFunnel(pagesToRender[0], allSteps[0]);
   }
 
+  // Append summary stats table
+  compareGrid.innerHTML += renderSummaryTable(pagesToRender);
+
   // Bind remove buttons
   compareGrid.querySelectorAll(".funnel-remove-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -788,6 +791,80 @@ function renderFunnelTable(pagesToRender, allSteps) {
       renderCompareGrid();
     });
   });
+}
+
+// ── Summary stats table ─────────────────────────────
+function renderSummaryTable(pagesToRender) {
+  const hasDelta = pagesToRender.length === 2;
+
+  const SUMMARY_ROWS = [
+    { label: "Sessions", key: "sessions", fmt: "num", higher: true },
+    { label: "Bounce Rate", key: "bounce", fmt: "pct", higher: false },
+    { label: "Conversion Rate", key: "cvr", fmt: "pct", higher: true },
+    { label: "% Added to Cart", key: "addedToCartRate", fmt: "pct", higher: true },
+    { label: "% Reached Checkout", key: "reachedCheckoutRate", fmt: "pct", higher: true },
+    { label: "% Checkout → Purchase", key: "_checkoutToPurchase", fmt: "pct", higher: true },
+  ];
+
+  // Compute derived metric
+  function getVal(page, key) {
+    if (key === "_checkoutToPurchase") {
+      const reachPct = page.reachedCheckoutRate || 0;
+      const completedPct = page.completedCheckoutRate || 0;
+      return reachPct > 0 ? (completedPct / reachPct) * 100 : 0;
+    }
+    return page[key] || 0;
+  }
+
+  let html = `<table class="ftable ftable-summary"><thead><tr>`;
+  html += `<th class="ftable-step-label">Metric</th>`;
+  pagesToRender.forEach((page, idx) => {
+    const badge = pagesToRender.length > 1
+      ? (idx === 0 ? `<span class="funnel-baseline-badge">A</span> ` : `<span class="funnel-compare-badge">B</span> `)
+      : "";
+    html += `<th class="ftable-page-header">${badge}${esc(page.name)}</th>`;
+  });
+  if (hasDelta) html += `<th class="ftable-delta-header">Change</th>`;
+  html += `</tr></thead><tbody>`;
+
+  for (const row of SUMMARY_ROWS) {
+    html += `<tr class="ftable-row">`;
+    html += `<td class="ftable-step-label">${row.label}</td>`;
+
+    pagesToRender.forEach((page) => {
+      const val = getVal(page, row.key);
+      html += `<td class="ftable-cell">`;
+      if (row.fmt === "num") {
+        html += `<span class="ftable-count">${fmtNum(val)}</span>`;
+      } else {
+        html += `<span class="ftable-conv">${val.toFixed(1)}%</span>`;
+      }
+      html += `</td>`;
+    });
+
+    if (hasDelta) {
+      const a = getVal(pagesToRender[0], row.key);
+      const b = getVal(pagesToRender[1], row.key);
+      if (row.fmt === "num") {
+        const diff = b - a;
+        const sign = diff > 0 ? "+" : "";
+        const cls = diff === 0 ? "diff-neutral" : (row.higher ? (diff > 0 ? "diff-good" : "diff-bad") : (diff < 0 ? "diff-good" : "diff-bad"));
+        html += `<td class="ftable-cell ftable-delta"><span class="diff-badge ${cls}">${sign}${fmtNum(diff)}</span></td>`;
+      } else {
+        const ppDiff = b - a;
+        const sign = ppDiff > 0 ? "+" : "";
+        const isGood = row.higher ? ppDiff > 0 : ppDiff < 0;
+        const cls = Math.abs(ppDiff) < 0.05 ? "diff-neutral" : (isGood ? "diff-good" : "diff-bad");
+        const arrow = ppDiff > 0 ? "&#9650;" : ppDiff < 0 ? "&#9660;" : "";
+        html += `<td class="ftable-cell ftable-delta"><span class="diff-badge ${cls}">${arrow} ${sign}${ppDiff.toFixed(1)}pp</span></td>`;
+      }
+    }
+
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>`;
+  return html;
 }
 
 // Renders a diff badge showing absolute diff (pp) and relative % change

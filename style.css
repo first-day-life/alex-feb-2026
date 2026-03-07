@@ -708,6 +708,11 @@ ul { list-style: none; }
   transition: width .3s ease;
 }
 
+/* Summary table spacing */
+.ftable-summary {
+  margin-top: 20px;
+}
+
 /* Baseline / compare badges */
 .funnel-baseline-badge, .funnel-compare-badge {
   display: inline-block;
