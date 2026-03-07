@@ -809,9 +809,12 @@ function renderSummaryTable(pagesToRender) {
   // Compute derived metric
   function getVal(page, key) {
     if (key === "_checkoutToPurchase") {
-      const reachPct = page.reachedCheckoutRate || 0;
-      const completedPct = page.completedCheckoutRate || 0;
-      return reachPct > 0 ? (completedPct / reachPct) * 100 : 0;
+      const sessions = page.sessions || 0;
+      const reachedCount = Math.round(sessions * (page.reachedCheckoutRate || 0) / 100);
+      const completedCount = page.sessionsCompleted > 0
+        ? page.sessionsCompleted
+        : Math.round(sessions * (page.completedCheckoutRate || 0) / 100);
+      return reachedCount > 0 ? (completedCount / reachedCount) * 100 : 0;
     }
     return page[key] || 0;
   }
