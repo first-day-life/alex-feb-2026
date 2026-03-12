@@ -603,6 +603,14 @@ function renderCompareGrid() {
   // Append summary stats table
   compareGrid.innerHTML += renderSummaryTable(pagesToRender);
 
+  // Bind view toggle
+  compareGrid.querySelectorAll(".ftable-view-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      funnelView = btn.dataset.view;
+      renderCompareGrid();
+    });
+  });
+
   // Bind remove buttons
   compareGrid.querySelectorAll(".funnel-remove-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -677,14 +685,6 @@ function renderSingleFunnel(page, steps) {
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
-
-  // Bind view toggle
-  compareGrid.querySelectorAll(".ftable-view-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      funnelView = btn.dataset.view;
-      renderCompareGrid();
-    });
-  });
 }
 
 // ── Compare table funnel ────────────────────────────
@@ -783,14 +783,6 @@ function renderFunnelTable(pagesToRender, allSteps) {
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
-
-  // Bind view toggle
-  compareGrid.querySelectorAll(".ftable-view-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      funnelView = btn.dataset.view;
-      renderCompareGrid();
-    });
-  });
 }
 
 // ── Summary stats table ─────────────────────────────
