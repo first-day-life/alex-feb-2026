@@ -469,6 +469,10 @@ function renderList() {
           <span class="metric-value">${fmtNum(page.sessions)}</span>
           <span class="metric-label">Sessions</span>
         </div>
+        <div class="metric">
+          <span class="metric-value">${fmtNum(page.sessionsCompleted)}</span>
+          <span class="metric-label">Orders</span>
+        </div>
       </div>
       <div class="page-card-bar">
         <div class="page-card-bar-fill" style="width:${(page.sessions / maxSessions) * 100}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></div>
@@ -901,6 +905,8 @@ function updateSummary(filtered) {
   $("#avg-cvr").textContent = weightedCvr.toFixed(1) + "%";
   $("#avg-bounce").textContent = weightedBounce.toFixed(1) + "%";
   $("#total-sessions").textContent = fmtNum(totalSess);
+  const totalOrders = filtered.reduce((s, p) => s + p.sessionsCompleted, 0);
+  $("#total-orders").textContent = fmtNum(totalOrders);
 }
 
 // ── Helpers ─────────────────────────────────────────
