@@ -685,10 +685,179 @@ function renderSingleFunnel(page, steps) {
 
     html += `</div>`;
   }
-  html += `</div></div>`;
+  html += `</div>`;
+
+  // Sessions & CVR over time chart
+  html += `<div class="sessions-cvr-chart-wrap">
+    <div class="sessions-cvr-chart-title">Sessions &amp; CVR Over Time</div>
+    <canvas id="sessions-cvr-canvas" height="220"></canvas>
+  </div>`;
+
+  html += `</div>`;
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
+
+  // Draw the chart after DOM is ready
+  requestAnimationFrame(() => drawSessionsCvrChart(page));
+}
+
+// ── Sessions & CVR dual-axis chart ─────────────────
+function getDailyDataForPage(page) {
+  const startDate = dateStartEl.value;
+  const endDate = dateEndEl.value;
+  const pagePath = normalizePath(page.url.replace("https://firstday.com", ""));
+
+  return rawRows
+    .filter((r) => {
+      if (normalizePath(r.path) !== pagePath) return false;
+      if (!r.day) return true;
+      return r.day >= startDate && r.day <= endDate;
+    })
+    .sort((a, b) => (a.day > b.day ? 1 : -1));
+}
+
+function drawSessionsCvrChart(page) {
+  const canvas = document.getElementById("sessions-cvr-canvas");
+  if (!canvas) return;
+
+  const dailyData = getDailyDataForPage(page);
+  if (dailyData.length < 2) {
+    canvas.parentElement.querySelector(".sessions-cvr-chart-title").textContent =
+      "Sessions & CVR Over Time (not enough data)";
+    canvas.style.display = "none";
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = rect.width - 2; // account for border
+  const H = 220;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const pad = { top: 16, right: 52, bottom: 44, left: 52 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const sessions = dailyData.map((d) => d.sessions);
+  const cvrs = dailyData.map((d) => d.cvr);
+  const labels = dailyData.map((d) => d.day);
+
+  const maxSess = Math.max(...sessions, 1);
+  const maxCvr = Math.max(...cvrs, 0.1);
+
+  // Nice round max for sessions axis
+  const sessStep = Math.pow(10, Math.floor(Math.log10(maxSess || 1)));
+  const sessMax = Math.ceil(maxSess / sessStep) * sessStep;
+  const cvrMax = Math.ceil(maxCvr * 2) / 2; // round up to nearest 0.5
+
+  const n = dailyData.length;
+  const barW = Math.max(2, Math.min(24, (cw / n) * 0.6));
+  const gap = cw / n;
+
+  // Grid lines
+  ctx.strokeStyle = "#2d3148";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+  }
+
+  // Session bars
+  const accentColor = "#6c5ce7";
+  const cvrColor = "#f59e0b";
+
+  for (let i = 0; i < n; i++) {
+    const x = pad.left + gap * i + gap / 2;
+    const barH = (sessions[i] / sessMax) * ch;
+    ctx.fillStyle = accentColor + "99";
+    ctx.beginPath();
+    const r = Math.min(3, barW / 2);
+    const bx = x - barW / 2;
+    const by = pad.top + ch - barH;
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + barW - r, by);
+    ctx.quadraticCurveTo(bx + barW, by, bx + barW, by + r);
+    ctx.lineTo(bx + barW, pad.top + ch);
+    ctx.lineTo(bx, pad.top + ch);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.fill();
+  }
+
+  // CVR line
+  ctx.strokeStyle = cvrColor;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = pad.left + gap * i + gap / 2;
+    const y = pad.top + ch - (cvrs[i] / cvrMax) * ch;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // CVR dots
+  ctx.fillStyle = cvrColor;
+  for (let i = 0; i < n; i++) {
+    const x = pad.left + gap * i + gap / 2;
+    const y = pad.top + ch - (cvrs[i] / cvrMax) * ch;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Left axis labels (Sessions)
+  ctx.fillStyle = "#9ca0b8";
+  ctx.font = "10px Inter, sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const val = sessMax - (sessMax / 4) * i;
+    const y = pad.top + (ch / 4) * i;
+    ctx.fillText(fmtNum(Math.round(val)), pad.left - 8, y);
+  }
+
+  // Right axis labels (CVR)
+  ctx.fillStyle = cvrColor;
+  ctx.textAlign = "left";
+  for (let i = 0; i <= 4; i++) {
+    const val = cvrMax - (cvrMax / 4) * i;
+    const y = pad.top + (ch / 4) * i;
+    ctx.fillText(val.toFixed(1) + "%", W - pad.right + 8, y);
+  }
+
+  // X-axis date labels (show subset to avoid crowding)
+  ctx.fillStyle = "#9ca0b8";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const maxLabels = Math.floor(cw / 60);
+  const step = Math.max(1, Math.ceil(n / maxLabels));
+  for (let i = 0; i < n; i += step) {
+    const x = pad.left + gap * i + gap / 2;
+    const lbl = labels[i].length > 5 ? labels[i].slice(5) : labels[i]; // show MM-DD
+    ctx.fillText(lbl, x, pad.top + ch + 6);
+  }
+
+  // Axis titles
+  ctx.fillStyle = accentColor;
+  ctx.textAlign = "center";
+  ctx.font = "600 10px Inter, sans-serif";
+  ctx.fillText("Sessions", pad.left / 2, H - 4);
+
+  ctx.fillStyle = cvrColor;
+  ctx.fillText("CVR %", W - pad.right / 2, H - 4);
 }
 
 // ── Compare table funnel ────────────────────────────

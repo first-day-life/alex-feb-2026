@@ -482,6 +482,26 @@ ul { list-style: none; }
   letter-spacing: .06em;
 }
 
+/* Sessions & CVR chart */
+.sessions-cvr-chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+.sessions-cvr-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 10px;
+}
+#sessions-cvr-canvas {
+  width: 100%;
+  display: block;
+}
+
 /* Vertical flow funnel */
 .funnel-flow {
   background: var(--surface);
