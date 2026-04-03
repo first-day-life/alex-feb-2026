@@ -633,6 +633,8 @@ function renderSingleFunnel(page, steps) {
   const isDropoff = funnelView === "dropoff";
 
   let html = `<div class="funnel-single">`;
+
+  // Full-width header
   html += `<div class="funnel-single-header">
     <div class="funnel-page-name">${esc(page.name)}</div>
     <div class="funnel-page-url">${esc(page.url)}</div>
@@ -643,6 +645,11 @@ function renderSingleFunnel(page, steps) {
     </div>
   </div>`;
 
+  // Two-column body: funnel left, chart right
+  html += `<div class="funnel-single-body">`;
+
+  // Left column: funnel
+  html += `<div class="funnel-single-left">`;
   html += `<div class="ftable-toolbar">
     <div class="ftable-view-toggle">
       <button class="ftable-view-btn${!isDropoff ? " active" : ""}" data-view="conversion">Conversion</button>
@@ -686,14 +693,18 @@ function renderSingleFunnel(page, steps) {
     html += `</div>`;
   }
   html += `</div>`;
+  html += `</div>`; // end funnel-single-left
 
-  // Sessions & CVR over time chart
-  html += `<div class="sessions-cvr-chart-wrap">
-    <div class="sessions-cvr-chart-title">Sessions &amp; CVR Over Time</div>
-    <canvas id="sessions-cvr-canvas" height="220"></canvas>
+  // Right column: chart
+  html += `<div class="funnel-single-right">
+    <div class="sessions-cvr-chart-wrap">
+      <div class="sessions-cvr-chart-title">Sessions &amp; CVR Over Time</div>
+      <canvas id="sessions-cvr-canvas"></canvas>
+    </div>
   </div>`;
 
-  html += `</div>`;
+  html += `</div>`; // end funnel-single-body
+  html += `</div>`; // end funnel-single
 
   compareGrid.className = "";
   compareGrid.innerHTML = html;
@@ -730,13 +741,11 @@ function drawSessionsCvrChart(page) {
   }
 
   const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  const W = rect.width - 2; // account for border
-  const H = 220;
+  const rect = canvas.getBoundingClientRect();
+  const W = Math.floor(rect.width);
+  const H = Math.floor(rect.height);
   canvas.width = W * dpr;
   canvas.height = H * dpr;
-  canvas.style.width = W + "px";
-  canvas.style.height = H + "px";
 
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);

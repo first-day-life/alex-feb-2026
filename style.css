@@ -435,7 +435,24 @@ ul { list-style: none; }
 .funnel-single {
   display: grid;
   gap: 20px;
-  max-width: 560px;
+}
+.funnel-single-body {
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.funnel-single-left {
+  display: grid;
+  gap: 20px;
+}
+.funnel-single-right {
+  min-width: 0;
+}
+@media (max-width: 960px) {
+  .funnel-single-body {
+    grid-template-columns: 1fr;
+  }
 }
 .funnel-single-header {
   background: var(--surface);
@@ -488,6 +505,10 @@ ul { list-style: none; }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 .sessions-cvr-chart-title {
   font-size: 12px;
@@ -496,10 +517,13 @@ ul { list-style: none; }
   text-transform: uppercase;
   letter-spacing: .06em;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 #sessions-cvr-canvas {
   width: 100%;
+  flex: 1;
   display: block;
+  min-height: 200px;
 }
 
 /* Vertical flow funnel */
