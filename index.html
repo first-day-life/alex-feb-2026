@@ -92,6 +92,14 @@
             <label>Sessions column<input type="text" id="col-sessions" value="sessions" placeholder="sessions"></label>
           </div>
         </div>
+        <div class="column-mapping">
+          <h3>Shopify API (optional)</h3>
+          <p class="modal-desc">Connect Shopify to diagnose CVR by UTM source/medium.</p>
+          <div class="mapping-grid">
+            <label>Store domain<input type="text" id="shopify-domain" placeholder="yourstore.myshopify.com"></label>
+            <label>Access token<input type="text" id="shopify-token" placeholder="shpat_xxxxxxxx"></label>
+          </div>
+        </div>
         <div class="modal-actions">
           <button id="settings-cancel" class="btn btn-ghost">Cancel</button>
           <button id="settings-save" class="btn btn-primary">Load Sheet</button>
@@ -147,6 +155,19 @@
           </div>
         </div>
       </section>
+    </div>
+  </div>
+
+  <!-- UTM Diagnosis modal -->
+  <div id="utm-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content utm-modal-content">
+      <div class="utm-modal-header">
+        <h2>CVR Diagnosis by UTM</h2>
+        <button id="utm-modal-close" class="btn btn-ghost utm-close-btn">&times;</button>
+      </div>
+      <p class="modal-desc" id="utm-modal-desc">Loading...</p>
+      <div id="utm-modal-body"></div>
     </div>
   </div>
 

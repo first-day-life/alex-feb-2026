@@ -44,6 +44,9 @@ const PASSWORD = "fdparty";
   });
 })();
 
+// ── Server-side env config (populated on init) ─────
+let envConfig = {};
+
 // ── State ───────────────────────────────────────────
 let rawRows = [];  // all daily rows from sheet
 let pages = [];    // aggregated by landing page for selected date range
@@ -71,13 +74,23 @@ const dateStartEl = $("#date-start");
 const dateEndEl = $("#date-end");
 
 // ── Init ────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadEnvConfig();
   loadSavedSettings();
   bindEvents();
   if (sessionStorage.getItem("lp-authed") === "1") {
     loadData();
   }
 });
+
+async function loadEnvConfig() {
+  try {
+    const resp = await fetch("/api/config");
+    if (resp.ok) envConfig = await resp.json();
+  } catch (_) {
+    // No server config available (local dev, etc.) — that's fine
+  }
+}
 
 // ── Events ──────────────────────────────────────────
 function bindEvents() {
@@ -106,10 +119,17 @@ function bindEvents() {
   $(".modal-backdrop").addEventListener("click", () => settingsModal.classList.add("hidden"));
   $("#settings-save").addEventListener("click", saveSettings);
 
+  // UTM modal close
+  $("#utm-modal-close").addEventListener("click", () => $("#utm-modal").classList.add("hidden"));
+  $("#utm-modal .modal-backdrop").addEventListener("click", () => $("#utm-modal").classList.add("hidden"));
+
   // Keyboard nav
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (compareMode) {
+      const utmModal = $("#utm-modal");
+      if (utmModal && !utmModal.classList.contains("hidden")) {
+        utmModal.classList.add("hidden");
+      } else if (compareMode) {
         toggleCompareMode();
       } else {
         settingsModal.classList.add("hidden");
@@ -153,19 +173,20 @@ function toggleCompareMode() {
 // ── Settings persistence ────────────────────────────
 function loadSavedSettings() {
   const saved = localStorage.getItem("lp-explorer-settings");
+  let s = {};
   if (saved) {
-    try {
-      const s = JSON.parse(saved);
-      $("#sheet-url").value = s.sheetUrl || DEFAULT_SHEET_URL;
-      if (s.colUrl) $("#col-url").value = s.colUrl;
-      if (s.colName) $("#col-name").value = s.colName;
-      if (s.colCvr) $("#col-cvr").value = s.colCvr;
-      if (s.colBounce) $("#col-bounce").value = s.colBounce;
-      if (s.colSessions) $("#col-sessions").value = s.colSessions;
-    } catch (_) {}
-  } else {
-    $("#sheet-url").value = DEFAULT_SHEET_URL;
+    try { s = JSON.parse(saved); } catch (_) {}
   }
+
+  // Env vars are defaults; localStorage overrides
+  $("#sheet-url").value = s.sheetUrl || envConfig.sheetUrl || DEFAULT_SHEET_URL;
+  if (s.colUrl) $("#col-url").value = s.colUrl;
+  if (s.colName) $("#col-name").value = s.colName;
+  if (s.colCvr) $("#col-cvr").value = s.colCvr;
+  if (s.colBounce) $("#col-bounce").value = s.colBounce;
+  if (s.colSessions) $("#col-sessions").value = s.colSessions;
+  $("#shopify-domain").value = s.shopifyDomain || envConfig.shopifyDomain || "";
+  $("#shopify-token").value = s.shopifyToken || envConfig.shopifyToken || "";
 }
 
 function saveSettings() {
@@ -176,6 +197,8 @@ function saveSettings() {
     colCvr: $("#col-cvr").value.trim(),
     colBounce: $("#col-bounce").value.trim(),
     colSessions: $("#col-sessions").value.trim(),
+    shopifyDomain: $("#shopify-domain").value.trim(),
+    shopifyToken: $("#shopify-token").value.trim(),
   };
   localStorage.setItem("lp-explorer-settings", JSON.stringify(settings));
   settingsModal.classList.add("hidden");
@@ -190,7 +213,7 @@ async function loadData() {
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
-  let sheetUrl = DEFAULT_SHEET_URL;
+  let sheetUrl = envConfig.sheetUrl || DEFAULT_SHEET_URL;
   let colMap = {
     day: "day",
     url: "landing_page_path",
@@ -626,6 +649,12 @@ function renderCompareGrid() {
       renderCompareGrid();
     });
   });
+
+  // Bind diagnose CVR button
+  const diagnoseBtn = compareGrid.querySelector("#diagnose-cvr-btn");
+  if (diagnoseBtn) {
+    diagnoseBtn.addEventListener("click", () => openUtmDiagnosis(pagesToRender[0]));
+  }
 }
 
 // ── Single page funnel ──────────────────────────────
@@ -643,6 +672,10 @@ function renderSingleFunnel(page, steps) {
       <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(page.sessions)}</span><span class="funnel-kpi-label">Sessions</span></div>
       <div class="funnel-kpi"><span class="funnel-kpi-value">${fmtNum(steps[4].count)}</span><span class="funnel-kpi-label">Purchases</span></div>
     </div>
+    <button class="btn btn-diagnose" id="diagnose-cvr-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Diagnose CVR by UTM
+    </button>
   </div>`;
 
   // Two-column body: funnel left, chart right
@@ -1165,4 +1198,247 @@ function withCacheBust(url) {
     const sep = url.includes("?") ? "&" : "?";
     return `${url}${sep}_ts=${ts}`;
   }
+}
+
+// ── UTM Diagnosis via Shopify ShopifyQL (GraphQL) ──
+const SHOPIFY_API_VERSION = "2025-10";
+
+const SHOPIFYQL_GQL = `
+query RunShopifyQL($q: String!) {
+  shopifyqlQuery(query: $q) {
+    tableData {
+      columns { name dataType }
+      rows
+    }
+    parseErrors
+  }
+}
+`;
+
+function getShopifySettings() {
+  let domain = "";
+  let token = "";
+
+  // Try localStorage first
+  const saved = localStorage.getItem("lp-explorer-settings");
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      domain = s.shopifyDomain || "";
+      token = s.shopifyToken || "";
+    } catch (_) {}
+  }
+
+  // Fall back to env config
+  if (!domain) domain = envConfig.shopifyDomain || "";
+  if (!token) token = envConfig.shopifyToken || "";
+
+  if (!domain || !token) return null;
+  domain = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return { domain, token };
+}
+
+async function executeShopifyQL(shopify, query) {
+  const endpoint = `https://${shopify.domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
+
+  const resp = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": shopify.token,
+    },
+    body: JSON.stringify({
+      query: SHOPIFYQL_GQL,
+      variables: { q: query },
+    }),
+  });
+
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error("Authentication failed — check your access token.");
+    if (resp.status === 403) throw new Error("Access denied — token may need read_analytics or read_reports scope.");
+    throw new Error(`Shopify GraphQL returned HTTP ${resp.status}`);
+  }
+
+  const json = await resp.json();
+
+  if (json.errors && json.errors.length) {
+    throw new Error(`GraphQL error: ${json.errors.map((e) => e.message).join("; ")}`);
+  }
+
+  const payload = json.data?.shopifyqlQuery;
+  if (!payload) throw new Error("Missing data.shopifyqlQuery in response");
+
+  if (payload.parseErrors && payload.parseErrors.length) {
+    throw new Error(`ShopifyQL parse error: ${JSON.stringify(payload.parseErrors)}`);
+  }
+
+  const tableData = payload.tableData;
+  if (!tableData) throw new Error("Missing tableData in response");
+
+  const columns = (tableData.columns || []).map((c) => c.name);
+  const rows = (tableData.rows || []).map((row) => {
+    const obj = {};
+    columns.forEach((col, i) => {
+      obj[col] = row[col] !== undefined ? row[col] : (Array.isArray(row) ? row[i] : "");
+    });
+    return obj;
+  });
+
+  return { columns, rows };
+}
+
+async function openUtmDiagnosis(page) {
+  const modal = $("#utm-modal");
+  const desc = $("#utm-modal-desc");
+  const body = $("#utm-modal-body");
+
+  modal.classList.remove("hidden");
+  desc.textContent = `Analyzing: ${page.name}`;
+  body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Running ShopifyQL queries...</div>`;
+
+  const shopify = getShopifySettings();
+  if (!shopify) {
+    body.innerHTML = `<div class="utm-empty">
+      <p>Shopify API not configured.</p>
+      <p>Go to <strong>Settings</strong> and enter your Shopify store domain and access token.</p>
+    </div>`;
+    return;
+  }
+
+  const pagePath = normalizePath(page.url.replace("https://firstday.com", ""));
+  const startDate = dateStartEl.value;
+  const endDate = dateEndEl.value;
+
+  try {
+    // Query 1: Sessions by utm_source / utm_medium for this landing page
+    const sessionsQuery = `
+      FROM sessions
+      SINCE ${startDate}
+      UNTIL ${endDate}
+      SHOW utm_campaign_source, utm_campaign_medium,
+           SUM(total_sessions) AS total_sessions,
+           SUM(total_orders) AS total_orders,
+           SUM(total_sales) AS total_sales
+      WHERE landing_page_path = '${pagePath}'
+      GROUP BY utm_campaign_source, utm_campaign_medium
+      ORDER BY total_sessions DESC
+    `;
+
+    body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying sessions by UTM source/medium...</div>`;
+    const sessionsResult = await executeShopifyQL(shopify, sessionsQuery);
+
+    // Query 2: Overall totals for this landing page (for CVR calc)
+    const totalsQuery = `
+      FROM sessions
+      SINCE ${startDate}
+      UNTIL ${endDate}
+      SHOW SUM(total_sessions) AS total_sessions,
+           SUM(total_orders) AS total_orders,
+           SUM(total_sales) AS total_sales
+      WHERE landing_page_path = '${pagePath}'
+    `;
+
+    body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying totals...</div>`;
+    const totalsResult = await executeShopifyQL(shopify, totalsQuery);
+
+    const analysis = buildUtmAnalysis(sessionsResult, totalsResult);
+    renderUtmAnalysis(body, analysis, page);
+  } catch (err) {
+    body.innerHTML = `<div class="utm-empty">
+      <p>Error querying Shopify:</p>
+      <p style="color:var(--red)">${esc(err.message)}</p>
+      <p style="margin-top:8px;font-size:12px;color:var(--text2)">Check your store domain and access token in Settings.<br>The token needs <code>read_analytics</code> scope for ShopifyQL queries.</p>
+    </div>`;
+  }
+}
+
+function coerceNum(v) {
+  if (typeof v === "number") return v;
+  if (!v) return 0;
+  return parseFloat(String(v).replace(/[,$]/g, "")) || 0;
+}
+
+function buildUtmAnalysis(sessionsResult, totalsResult) {
+  const rows = sessionsResult.rows.map((r) => ({
+    source: r.utm_campaign_source || "(direct)",
+    medium: r.utm_campaign_medium || "(none)",
+    sessions: coerceNum(r.total_sessions),
+    orders: coerceNum(r.total_orders),
+    revenue: coerceNum(r.total_sales),
+  }));
+
+  // Totals row
+  const totRow = totalsResult.rows[0] || {};
+  const totalSessions = coerceNum(totRow.total_sessions);
+  const totalOrders = coerceNum(totRow.total_orders);
+  const totalRevenue = coerceNum(totRow.total_sales);
+
+  return { rows, totalSessions, totalOrders, totalRevenue };
+}
+
+function renderUtmAnalysis(container, analysis, page) {
+  if (!analysis.rows.length) {
+    container.innerHTML = `<div class="utm-empty">
+      <p>No session data found for this landing page in the selected date range.</p>
+      <p style="font-size:12px;color:var(--text2);margin-top:6px">Data is queried via ShopifyQL on the <code>sessions</code> table, filtered by <code>landing_page_path</code>.</p>
+    </div>`;
+    return;
+  }
+
+  const overallCvr = analysis.totalSessions > 0
+    ? ((analysis.totalOrders / analysis.totalSessions) * 100).toFixed(2)
+    : "0.00";
+
+  let html = `<div class="utm-summary">
+    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalSessions)}</span><span class="utm-stat-label">Sessions</span></div>
+    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalOrders)}</span><span class="utm-stat-label">Orders</span></div>
+    <div class="utm-stat"><span class="utm-stat-value">${overallCvr}%</span><span class="utm-stat-label">CVR</span></div>
+    <div class="utm-stat"><span class="utm-stat-value">$${fmtNum(Math.round(analysis.totalRevenue))}</span><span class="utm-stat-label">Revenue</span></div>
+  </div>`;
+
+  // Find max sessions for relative bars
+  const maxSess = Math.max(...analysis.rows.map((r) => r.sessions), 1);
+
+  html += `<div class="utm-table-wrap"><table class="utm-table">
+    <thead><tr>
+      <th>Source / Medium</th>
+      <th>Sessions</th>
+      <th>Orders</th>
+      <th>CVR</th>
+      <th>Revenue</th>
+      <th>AOV</th>
+      <th>% of Traffic</th>
+    </tr></thead><tbody>`;
+
+  for (const row of analysis.rows) {
+    const cvr = row.sessions > 0 ? ((row.orders / row.sessions) * 100).toFixed(2) : "0.00";
+    const aov = row.orders > 0 ? (row.revenue / row.orders).toFixed(0) : "—";
+    const trafficPct = analysis.totalSessions > 0
+      ? ((row.sessions / analysis.totalSessions) * 100).toFixed(1)
+      : "0.0";
+    const barWidth = (row.sessions / maxSess) * 100;
+
+    // Color CVR: green if above overall, red if below
+    const cvrNum = parseFloat(cvr);
+    const overallNum = parseFloat(overallCvr);
+    const cvrClass = cvrNum >= overallNum ? "utm-cvr-good" : "utm-cvr-bad";
+
+    html += `<tr>
+      <td>
+        <div class="utm-source-cell">
+          <span class="utm-source-name">${esc(row.source)} / ${esc(row.medium)}</span>
+          <div class="utm-source-bar"><div class="utm-source-bar-fill" style="width:${barWidth}%"></div></div>
+        </div>
+      </td>
+      <td class="utm-num">${fmtNum(row.sessions)}</td>
+      <td class="utm-num">${fmtNum(row.orders)}</td>
+      <td class="utm-num ${cvrClass}">${cvr}%</td>
+      <td class="utm-num">$${fmtNum(Math.round(row.revenue))}</td>
+      <td class="utm-num">${aov === "—" ? aov : "$" + aov}</td>
+      <td class="utm-num">${trafficPct}%</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
 }

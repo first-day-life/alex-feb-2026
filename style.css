@@ -988,6 +988,147 @@ ul { list-style: none; }
 }
 /* (old diff/badge styles moved to ftable section) */
 
+/* ── Diagnose CVR button ────────────────────────── */
+.btn-diagnose {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-diagnose:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── UTM Diagnosis modal ───────────────────────── */
+.utm-modal-content {
+  max-width: 720px !important;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.utm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.utm-close-btn {
+  padding: 4px 10px;
+  font-size: 18px;
+  line-height: 1;
+}
+.utm-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: var(--text2);
+  font-size: 13px;
+}
+.utm-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.utm-empty {
+  padding: 24px 0;
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.utm-empty code {
+  background: var(--surface2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.utm-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.utm-stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 2px;
+}
+.utm-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.utm-stat-label {
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.utm-table-wrap {
+  overflow-y: auto;
+  max-height: 50vh;
+}
+.utm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.utm-table thead { position: sticky; top: 0; z-index: 1; }
+.utm-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 8px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.utm-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.utm-table tbody tr:hover { background: var(--surface2); }
+.utm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.utm-source-cell { display: grid; gap: 4px; }
+.utm-source-name { font-weight: 500; }
+.utm-source-bar {
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.utm-source-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+}
+.utm-cvr-good { color: var(--green); font-weight: 600; }
+.utm-cvr-bad { color: var(--red); font-weight: 600; }
+
 /* ── Card entrance animation ─────────────────────── */
 @keyframes card-in {
   from { opacity: 0; transform: translateY(10px); }
