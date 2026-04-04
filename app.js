@@ -86,9 +86,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function loadEnvConfig() {
   try {
     const resp = await fetch("/api/config");
-    if (resp.ok) envConfig = await resp.json();
+    if (resp.ok) {
+      envConfig = await resp.json();
+    }
   } catch (_) {
-    // No server config available (local dev, etc.) — that's fine
+    // /api/config not available (local dev) — fall back to localStorage
   }
 }
 
@@ -1200,63 +1202,63 @@ function withCacheBust(url) {
   }
 }
 
-// ── UTM Diagnosis via Shopify ShopifyQL (GraphQL) ──
-const SHOPIFY_API_VERSION = "2025-10";
+// ── UTM Diagnosis via Shopify ShopifyQL (proxied) ──
 
-const SHOPIFYQL_GQL = `
-query RunShopifyQL($q: String!) {
-  shopifyqlQuery(query: $q) {
-    tableData {
-      columns { name dataType }
-      rows
-    }
-    parseErrors
-  }
-}
-`;
-
-function getShopifySettings() {
-  let domain = "";
-  let token = "";
-
-  // Try localStorage first
+function isShopifyConfigured() {
+  // Server-side env vars configured?
+  if (envConfig.shopifyConfigured) return true;
+  // Or manual localStorage override?
   const saved = localStorage.getItem("lp-explorer-settings");
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      domain = s.shopifyDomain || "";
-      token = s.shopifyToken || "";
+      if (s.shopifyDomain && s.shopifyToken) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
+async function executeShopifyQL(query) {
+  // Check if user has manual overrides in localStorage
+  const saved = localStorage.getItem("lp-explorer-settings");
+  let manualDomain = "", manualToken = "";
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      manualDomain = s.shopifyDomain || "";
+      manualToken = s.shopifyToken || "";
     } catch (_) {}
   }
 
-  // Fall back to env config
-  if (!domain) domain = envConfig.shopifyDomain || "";
-  if (!token) token = envConfig.shopifyToken || "";
-
-  if (!domain || !token) return null;
-  domain = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-  return { domain, token };
-}
-
-async function executeShopifyQL(shopify, query) {
-  const endpoint = `https://${shopify.domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
-
-  const resp = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": shopify.token,
-    },
-    body: JSON.stringify({
-      query: SHOPIFYQL_GQL,
-      variables: { q: query },
-    }),
-  });
+  let resp;
+  if (manualDomain && manualToken) {
+    // Direct call using manual credentials
+    const domain = manualDomain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    resp = await fetch(`https://${domain}/admin/api/2025-10/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": manualToken,
+      },
+      body: JSON.stringify({
+        query: `query RunShopifyQL($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name dataType } rows } parseErrors } }`,
+        variables: { q: query },
+      }),
+    });
+  } else {
+    // Use server-side proxy (credentials in Vercel env vars)
+    resp = await fetch("/api/shopifyql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+  }
 
   if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
     if (resp.status === 401) throw new Error("Authentication failed — check your access token.");
-    if (resp.status === 403) throw new Error("Access denied — token may need read_analytics or read_reports scope.");
-    throw new Error(`Shopify GraphQL returned HTTP ${resp.status}`);
+    if (resp.status === 403) throw new Error("Access denied — token may need read_analytics scope.");
+    throw new Error(errBody.error || `Shopify returned HTTP ${resp.status}`);
   }
 
   const json = await resp.json();
@@ -1296,11 +1298,10 @@ async function openUtmDiagnosis(page) {
   desc.textContent = `Analyzing: ${page.name}`;
   body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Running ShopifyQL queries...</div>`;
 
-  const shopify = getShopifySettings();
-  if (!shopify) {
+  if (!isShopifyConfigured()) {
     body.innerHTML = `<div class="utm-empty">
       <p>Shopify API not configured.</p>
-      <p>Go to <strong>Settings</strong> and enter your Shopify store domain and access token.</p>
+      <p>Set <code>SHOPIFY_URL</code> and <code>SHOPIFY_TOKEN</code> in Vercel env vars, or enter them manually in <strong>Settings</strong>.</p>
     </div>`;
     return;
   }
@@ -1325,7 +1326,7 @@ async function openUtmDiagnosis(page) {
     `;
 
     body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying sessions by UTM source/medium...</div>`;
-    const sessionsResult = await executeShopifyQL(shopify, sessionsQuery);
+    const sessionsResult = await executeShopifyQL(sessionsQuery);
 
     // Query 2: Overall totals for this landing page (for CVR calc)
     const totalsQuery = `
@@ -1339,7 +1340,7 @@ async function openUtmDiagnosis(page) {
     `;
 
     body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying totals...</div>`;
-    const totalsResult = await executeShopifyQL(shopify, totalsQuery);
+    const totalsResult = await executeShopifyQL(totalsQuery);
 
     const analysis = buildUtmAnalysis(sessionsResult, totalsResult);
     renderUtmAnalysis(body, analysis, page);
