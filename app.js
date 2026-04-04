@@ -1214,26 +1214,19 @@ function getShopifyCredentials() {
 }
 
 async function executeShopifyQL(query) {
-  const creds = getShopifyCredentials();
-  if (!creds) throw new Error("Shopify not configured");
-
-  const resp = await fetch(`https://${creds.domain}/admin/api/2025-10/graphql.json`, {
+  const resp = await fetch("/api/shopify", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": creds.token,
-    },
-    body: JSON.stringify({
-      query: `query RunShopifyQL($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name dataType } rows } parseErrors } }`,
-      variables: { q: query },
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
   });
 
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => ({}));
-    if (resp.status === 401) throw new Error("Authentication failed — check your access token.");
-    if (resp.status === 403) throw new Error("Access denied — token may need read_analytics scope.");
-    throw new Error(errBody.error || `Shopify returned HTTP ${resp.status}`);
+    console.error("[ShopifyQL] API error:", JSON.stringify(errBody, null, 2));
+    const debugStr = errBody.debug ? `\n\nDebug info:\n${JSON.stringify(errBody.debug, null, 2)}` : "";
+    if (resp.status === 401) throw new Error(`Authentication failed (HTTP 401)${debugStr}`);
+    if (resp.status === 403) throw new Error(`Access denied (HTTP 403)${debugStr}`);
+    throw new Error((errBody.error || `Shopify returned HTTP ${resp.status}`) + debugStr);
   }
 
   const json = await resp.json();
@@ -1322,8 +1315,12 @@ async function openUtmDiagnosis(page) {
   } catch (err) {
     body.innerHTML = `<div class="utm-empty">
       <p>Error querying Shopify:</p>
-      <p style="color:var(--red)">${esc(err.message)}</p>
+      <p style="color:var(--red)">${esc(err.message).replace(/\n/g, "<br>")}</p>
       <p style="margin-top:8px;font-size:12px;color:var(--text2)">Check your store domain and access token in Settings.<br>The token needs <code>read_analytics</code> scope for ShopifyQL queries.</p>
+      <details style="margin-top:10px;font-size:11px;color:var(--text2);text-align:left">
+        <summary style="cursor:pointer">Full error details</summary>
+        <pre style="margin-top:6px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;background:rgba(0,0,0,.3);padding:8px;border-radius:4px">${esc(err.stack || err.message)}</pre>
+      </details>
     </div>`;
   }
 }
