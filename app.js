@@ -1284,13 +1284,11 @@ async function openUtmDiagnosis(page) {
       FROM sessions
       SINCE ${startDate}
       UNTIL ${endDate}
-      SHOW utm_campaign_source, utm_campaign_medium,
-           SUM(total_sessions) AS total_sessions,
-           SUM(total_orders) AS total_orders,
-           SUM(total_sales) AS total_sales
+      SHOW sessions, sessions_that_completed_checkout, conversion_rate,
+           utm_source, utm_medium
       WHERE landing_page_path = '${pagePath}'
-      GROUP BY utm_campaign_source, utm_campaign_medium
-      ORDER BY total_sessions DESC
+      GROUP BY utm_source, utm_medium
+      ORDER BY sessions DESC
     `;
 
     body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying sessions by UTM source/medium...</div>`;
@@ -1301,9 +1299,7 @@ async function openUtmDiagnosis(page) {
       FROM sessions
       SINCE ${startDate}
       UNTIL ${endDate}
-      SHOW SUM(total_sessions) AS total_sessions,
-           SUM(total_orders) AS total_orders,
-           SUM(total_sales) AS total_sales
+      SHOW sessions, sessions_that_completed_checkout, conversion_rate
       WHERE landing_page_path = '${pagePath}'
     `;
 
@@ -1333,18 +1329,18 @@ function coerceNum(v) {
 
 function buildUtmAnalysis(sessionsResult, totalsResult) {
   const rows = sessionsResult.rows.map((r) => ({
-    source: r.utm_campaign_source || "(direct)",
-    medium: r.utm_campaign_medium || "(none)",
-    sessions: coerceNum(r.total_sessions),
-    orders: coerceNum(r.total_orders),
-    revenue: coerceNum(r.total_sales),
+    source: r.utm_source || "(direct)",
+    medium: r.utm_medium || "(none)",
+    sessions: coerceNum(r.sessions),
+    orders: coerceNum(r.sessions_that_completed_checkout),
+    cvr: coerceNum(r.conversion_rate),
   }));
 
   // Totals row
   const totRow = totalsResult.rows[0] || {};
-  const totalSessions = coerceNum(totRow.total_sessions);
-  const totalOrders = coerceNum(totRow.total_orders);
-  const totalRevenue = coerceNum(totRow.total_sales);
+  const totalSessions = coerceNum(totRow.sessions);
+  const totalOrders = coerceNum(totRow.sessions_that_completed_checkout);
+  const totalRevenue = 0; // not available on sessions table
 
   return { rows, totalSessions, totalOrders, totalRevenue };
 }
@@ -1364,9 +1360,8 @@ function renderUtmAnalysis(container, analysis, page) {
 
   let html = `<div class="utm-summary">
     <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalSessions)}</span><span class="utm-stat-label">Sessions</span></div>
-    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalOrders)}</span><span class="utm-stat-label">Orders</span></div>
+    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalOrders)}</span><span class="utm-stat-label">Checkouts</span></div>
     <div class="utm-stat"><span class="utm-stat-value">${overallCvr}%</span><span class="utm-stat-label">CVR</span></div>
-    <div class="utm-stat"><span class="utm-stat-value">$${fmtNum(Math.round(analysis.totalRevenue))}</span><span class="utm-stat-label">Revenue</span></div>
   </div>`;
 
   // Find max sessions for relative bars
@@ -1376,16 +1371,13 @@ function renderUtmAnalysis(container, analysis, page) {
     <thead><tr>
       <th>Source / Medium</th>
       <th>Sessions</th>
-      <th>Orders</th>
+      <th>Checkouts</th>
       <th>CVR</th>
-      <th>Revenue</th>
-      <th>AOV</th>
       <th>% of Traffic</th>
     </tr></thead><tbody>`;
 
   for (const row of analysis.rows) {
     const cvr = row.sessions > 0 ? ((row.orders / row.sessions) * 100).toFixed(2) : "0.00";
-    const aov = row.orders > 0 ? (row.revenue / row.orders).toFixed(0) : "—";
     const trafficPct = analysis.totalSessions > 0
       ? ((row.sessions / analysis.totalSessions) * 100).toFixed(1)
       : "0.0";
@@ -1406,8 +1398,6 @@ function renderUtmAnalysis(container, analysis, page) {
       <td class="utm-num">${fmtNum(row.sessions)}</td>
       <td class="utm-num">${fmtNum(row.orders)}</td>
       <td class="utm-num ${cvrClass}">${cvr}%</td>
-      <td class="utm-num">$${fmtNum(Math.round(row.revenue))}</td>
-      <td class="utm-num">${aov === "—" ? aov : "$" + aov}</td>
       <td class="utm-num">${trafficPct}%</td>
     </tr>`;
   }
