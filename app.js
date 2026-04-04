@@ -44,8 +44,11 @@ const PASSWORD = "fdparty";
   });
 })();
 
-// ── Server-side env config (populated on init) ─────
-let envConfig = {};
+// ── Shopify config ──────────────────────────────────
+// Loaded from env.js (gitignored) at runtime.
+// Create env.js with: window.__ENV = { SHOPIFY_DOMAIN: "...", SHOPIFY_TOKEN: "..." };
+const DEFAULT_SHOPIFY_DOMAIN = (window.__ENV && window.__ENV.SHOPIFY_DOMAIN) || "";
+const DEFAULT_SHOPIFY_TOKEN  = (window.__ENV && window.__ENV.SHOPIFY_TOKEN) || "";
 
 // ── State ───────────────────────────────────────────
 let rawRows = [];  // all daily rows from sheet
@@ -74,25 +77,13 @@ const dateStartEl = $("#date-start");
 const dateEndEl = $("#date-end");
 
 // ── Init ────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadEnvConfig();
+document.addEventListener("DOMContentLoaded", () => {
   loadSavedSettings();
   bindEvents();
   if (sessionStorage.getItem("lp-authed") === "1") {
     loadData();
   }
 });
-
-async function loadEnvConfig() {
-  try {
-    const resp = await fetch("/api/config");
-    if (resp.ok) {
-      envConfig = await resp.json();
-    }
-  } catch (_) {
-    // /api/config not available (local dev) — fall back to localStorage
-  }
-}
 
 // ── Events ──────────────────────────────────────────
 function bindEvents() {
@@ -180,15 +171,14 @@ function loadSavedSettings() {
     try { s = JSON.parse(saved); } catch (_) {}
   }
 
-  // Env vars are defaults; localStorage overrides
-  $("#sheet-url").value = s.sheetUrl || envConfig.sheetUrl || DEFAULT_SHEET_URL;
+  $("#sheet-url").value = s.sheetUrl || DEFAULT_SHEET_URL;
   if (s.colUrl) $("#col-url").value = s.colUrl;
   if (s.colName) $("#col-name").value = s.colName;
   if (s.colCvr) $("#col-cvr").value = s.colCvr;
   if (s.colBounce) $("#col-bounce").value = s.colBounce;
   if (s.colSessions) $("#col-sessions").value = s.colSessions;
-  $("#shopify-domain").value = s.shopifyDomain || envConfig.shopifyDomain || "";
-  $("#shopify-token").value = s.shopifyToken || envConfig.shopifyToken || "";
+  $("#shopify-domain").value = s.shopifyDomain || DEFAULT_SHOPIFY_DOMAIN;
+  $("#shopify-token").value = s.shopifyToken || DEFAULT_SHOPIFY_TOKEN;
 }
 
 function saveSettings() {
@@ -215,7 +205,7 @@ async function loadData() {
   previewWrap.classList.add("hidden");
 
   const saved = localStorage.getItem("lp-explorer-settings");
-  let sheetUrl = envConfig.sheetUrl || DEFAULT_SHEET_URL;
+  let sheetUrl = DEFAULT_SHEET_URL;
   let colMap = {
     day: "day",
     url: "landing_page_path",
@@ -1204,55 +1194,40 @@ function withCacheBust(url) {
 
 // ── UTM Diagnosis via Shopify ShopifyQL (proxied) ──
 
-function isShopifyConfigured() {
-  // Server-side env vars configured?
-  if (envConfig.shopifyConfigured) return true;
-  // Or manual localStorage override?
+function getShopifyCredentials() {
+  let domain = DEFAULT_SHOPIFY_DOMAIN;
+  let token = DEFAULT_SHOPIFY_TOKEN;
+
+  // localStorage overrides hardcoded defaults
   const saved = localStorage.getItem("lp-explorer-settings");
   if (saved) {
     try {
       const s = JSON.parse(saved);
-      if (s.shopifyDomain && s.shopifyToken) return true;
+      if (s.shopifyDomain) domain = s.shopifyDomain;
+      if (s.shopifyToken) token = s.shopifyToken;
     } catch (_) {}
   }
-  return false;
+
+  if (!domain || !token) return null;
+  domain = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return { domain, token };
 }
 
 async function executeShopifyQL(query) {
-  // Check if user has manual overrides in localStorage
-  const saved = localStorage.getItem("lp-explorer-settings");
-  let manualDomain = "", manualToken = "";
-  if (saved) {
-    try {
-      const s = JSON.parse(saved);
-      manualDomain = s.shopifyDomain || "";
-      manualToken = s.shopifyToken || "";
-    } catch (_) {}
-  }
+  const creds = getShopifyCredentials();
+  if (!creds) throw new Error("Shopify not configured");
 
-  let resp;
-  if (manualDomain && manualToken) {
-    // Direct call using manual credentials
-    const domain = manualDomain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    resp = await fetch(`https://${domain}/admin/api/2025-10/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": manualToken,
-      },
-      body: JSON.stringify({
-        query: `query RunShopifyQL($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name dataType } rows } parseErrors } }`,
-        variables: { q: query },
-      }),
-    });
-  } else {
-    // Use server-side proxy (credentials in Vercel env vars)
-    resp = await fetch("/api/shopifyql", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
-  }
+  const resp = await fetch(`https://${creds.domain}/admin/api/2025-10/graphql.json`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": creds.token,
+    },
+    body: JSON.stringify({
+      query: `query RunShopifyQL($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name dataType } rows } parseErrors } }`,
+      variables: { q: query },
+    }),
+  });
 
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => ({}));
@@ -1298,7 +1273,7 @@ async function openUtmDiagnosis(page) {
   desc.textContent = `Analyzing: ${page.name}`;
   body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Running ShopifyQL queries...</div>`;
 
-  if (!isShopifyConfigured()) {
+  if (!getShopifyCredentials()) {
     body.innerHTML = `<div class="utm-empty">
       <p>Shopify API not configured.</p>
       <p>Set <code>SHOPIFY_URL</code> and <code>SHOPIFY_TOKEN</code> in Vercel env vars, or enter them manually in <strong>Settings</strong>.</p>
