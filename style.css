@@ -1390,6 +1390,30 @@ ul { list-style: none; }
 .fb-utm-row-clickable { cursor: pointer; }
 .fb-utm-row-clickable:hover td { background: rgba(108, 92, 231, .08) !important; }
 
+#fb-row-modal .utm-modal-content {
+  max-width: 960px !important;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#fb-row-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;        /* critical: lets the flex child actually shrink + scroll */
+  overflow-y: auto;
+  overflow-x: auto;
+  padding-right: 4px;
+  margin-right: -4px;   /* absorb scrollbar so content width doesn't jump */
+}
+#fb-row-modal-body::-webkit-scrollbar { width: 10px; height: 10px; }
+#fb-row-modal-body::-webkit-scrollbar-track { background: transparent; }
+#fb-row-modal-body::-webkit-scrollbar-thumb {
+  background: var(--surface2);
+  border-radius: 5px;
+  border: 2px solid var(--surface);
+}
+#fb-row-modal-body::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
 .fb-row-tabs {
   display: flex;
   gap: 6px;
@@ -1399,6 +1423,7 @@ ul { list-style: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
   width: fit-content;
+  flex-shrink: 0;
 }
 .fb-row-tab {
   padding: 7px 14px;
