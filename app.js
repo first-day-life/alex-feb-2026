@@ -93,6 +93,31 @@ function bindEvents() {
     sidebarEl.classList.toggle("closed");
   });
 
+  // Workbook hamburger menu (tab switcher)
+  const wbBtn = $("#workbook-menu-btn");
+  const wbMenu = $("#workbook-menu");
+  wbBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const nowOpen = wbMenu.classList.toggle("hidden") === false;
+    wbBtn.setAttribute("aria-expanded", nowOpen ? "true" : "false");
+  });
+  document.addEventListener("click", (e) => {
+    if (!wbMenu.classList.contains("hidden") && !wbMenu.contains(e.target) && e.target !== wbBtn) {
+      wbMenu.classList.add("hidden");
+      wbBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+  wbMenu.querySelectorAll(".workbook-menu-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      switchTab(item.dataset.tab);
+      wbMenu.classList.add("hidden");
+      wbBtn.setAttribute("aria-expanded", "false");
+    });
+  });
+
+  // Facebook UTM refresh
+  $("#fb-utm-refresh").addEventListener("click", loadFacebookUtmBreakdown);
+
   // Search
   searchEl.addEventListener("input", () => renderList());
 
@@ -1342,6 +1367,152 @@ async function openUtmDiagnosis(page) {
       </details>
     </div>`;
   }
+}
+
+// ── Workbook tabs ───────────────────────────────────
+function switchTab(tabId) {
+  const mainEl = document.getElementById("main");
+  const fbEl = document.getElementById("facebook-utm-view");
+
+  document.querySelectorAll(".workbook-menu-item").forEach((item) => {
+    item.classList.toggle("active", item.dataset.tab === tabId);
+  });
+
+  if (tabId === "facebook-utm") {
+    mainEl.classList.add("hidden");
+    fbEl.classList.remove("hidden");
+    const body = document.getElementById("fb-utm-body");
+    // Auto-load on first visit
+    if (body && body.dataset.loaded !== "1") {
+      loadFacebookUtmBreakdown();
+    }
+  } else {
+    fbEl.classList.add("hidden");
+    mainEl.classList.remove("hidden");
+  }
+}
+
+// ── Facebook UTM breakdown ──────────────────────────
+async function loadFacebookUtmBreakdown() {
+  const body = document.getElementById("fb-utm-body");
+  body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying Shopify for Facebook traffic...</div>`;
+
+  if (!getShopifyCredentials()) {
+    body.innerHTML = `<div class="fb-utm-empty">
+      <p>Shopify API not configured.</p>
+      <p>Set <code>SHOPIFY_DOMAIN</code> and <code>SHOPIFY_TOKEN</code> in env vars, or enter them in <strong>Settings</strong>.</p>
+    </div>`;
+    return;
+  }
+
+  const startDate = dateStartEl.value;
+  const endDate = dateEndEl.value;
+
+  // Break down Facebook traffic by landing page, with the 4 requested metrics.
+  // ShopifyQL fields referenced (all part of the `sessions` table):
+  //   sessions, bounce_rate, average_session_duration, add_to_cart_rate
+  const query = `
+    FROM sessions
+    SINCE ${startDate}
+    UNTIL ${endDate}
+    SHOW sessions, bounce_rate, average_session_duration, add_to_cart_rate,
+         landing_page_path
+    WHERE utm_source = 'facebook'
+    GROUP BY landing_page_path
+    ORDER BY sessions DESC
+  `;
+
+  try {
+    const result = await executeShopifyQL(query);
+    renderFacebookUtmTable(body, result, { startDate, endDate });
+    body.dataset.loaded = "1";
+  } catch (err) {
+    body.innerHTML = `<div class="fb-utm-empty">
+      <p>Error querying Shopify:</p>
+      <p style="color:var(--red)">${esc(err.message).replace(/\n/g, "<br>")}</p>
+      <details style="margin-top:10px;font-size:11px;color:var(--text2);text-align:left">
+        <summary style="cursor:pointer">Full error details</summary>
+        <pre style="margin-top:6px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;background:rgba(0,0,0,.3);padding:8px;border-radius:4px">${esc(err.stack || err.message)}</pre>
+      </details>
+    </div>`;
+  }
+}
+
+function renderFacebookUtmTable(container, result, dates) {
+  const rows = (result.rows || []).map((r) => ({
+    path: r.landing_page_path || "(unknown)",
+    sessions: coerceNum(r.sessions),
+    bounce: coerceNum(r.bounce_rate),
+    duration: coerceNum(r.average_session_duration),
+    cartRate: coerceNum(r.add_to_cart_rate),
+  }));
+
+  if (!rows.length) {
+    container.innerHTML = `<div class="fb-utm-empty">No Facebook sessions in ${dates.startDate} → ${dates.endDate}.</div>`;
+    return;
+  }
+
+  // Totals / weighted averages
+  const totalSessions = rows.reduce((a, r) => a + r.sessions, 0);
+  const wAvg = (key) =>
+    totalSessions > 0
+      ? rows.reduce((a, r) => a + r[key] * r.sessions, 0) / totalSessions
+      : 0;
+  const avgBounce = wAvg("bounce");
+  const avgDuration = wAvg("duration");
+  const avgCart = wAvg("cartRate");
+
+  const fmtRate = (v) => {
+    // ShopifyQL may return rates as 0-1 fractions or 0-100 percentages
+    const pct = v <= 1 ? v * 100 : v;
+    return pct.toFixed(1) + "%";
+  };
+  const fmtDuration = (s) => {
+    if (!s) return "0s";
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
+
+  let html = `
+    <div class="fb-utm-summary">
+      <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtNum(totalSessions)}</span><span class="fb-utm-kpi-label">Total Sessions</span></div>
+      <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtRate(avgBounce)}</span><span class="fb-utm-kpi-label">Avg Bounce Rate</span></div>
+      <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtDuration(avgDuration)}</span><span class="fb-utm-kpi-label">Avg Session Duration</span></div>
+      <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtRate(avgCart)}</span><span class="fb-utm-kpi-label">Avg Add-to-Cart Rate</span></div>
+    </div>
+    <div class="fb-utm-period">${dates.startDate} → ${dates.endDate} · ${rows.length} landing page${rows.length === 1 ? "" : "s"}</div>
+    <table class="fb-utm-table">
+      <thead>
+        <tr>
+          <th class="fb-utm-col-path">Landing Page</th>
+          <th class="fb-utm-col-num">Sessions</th>
+          <th class="fb-utm-col-num">Bounce Rate</th>
+          <th class="fb-utm-col-num">Avg Session Duration</th>
+          <th class="fb-utm-col-num">Add-to-Cart Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  const maxSess = Math.max(...rows.map((r) => r.sessions), 1);
+  for (const r of rows) {
+    const barW = (r.sessions / maxSess) * 100;
+    html += `
+      <tr>
+        <td class="fb-utm-col-path" title="${esc(r.path)}">${esc(r.path)}</td>
+        <td class="fb-utm-col-num">
+          <div class="fb-utm-cell-bar"><span class="fb-utm-bar" style="width:${barW}%"></span><span class="fb-utm-bar-val">${fmtNum(r.sessions)}</span></div>
+        </td>
+        <td class="fb-utm-col-num">${fmtRate(r.bounce)}</td>
+        <td class="fb-utm-col-num">${fmtDuration(r.duration)}</td>
+        <td class="fb-utm-col-num">${fmtRate(r.cartRate)}</td>
+      </tr>
+    `;
+  }
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
 }
 
 function coerceNum(v) {
