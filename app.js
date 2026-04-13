@@ -1488,10 +1488,15 @@ function renderFacebookUtmTable(container, result, dates) {
   const heatText = (t) => (t > 0.55 ? "#0b3d1f" : "var(--text)");
   const scale = (val, min, max) => (max > min ? (val - min) / (max - min) : 0);
 
-  const durMin = Math.min(...rows.map((r) => r.duration));
-  const durMax = Math.max(...rows.map((r) => r.duration));
-  const cvrMin = Math.min(...rows.map((r) => r.cvr));
-  const cvrMax = Math.max(...rows.map((r) => r.cvr));
+  // Color scale only applies to the top 20 rows (by sessions — rows are already
+  // sorted DESC by sessions from the ShopifyQL query). Long-tail pages stay
+  // uncolored so the scale stays meaningful for high-traffic comparisons.
+  const HEAT_TOP_N = 20;
+  const heatRows = rows.slice(0, HEAT_TOP_N);
+  const durMin = Math.min(...heatRows.map((r) => r.duration));
+  const durMax = Math.max(...heatRows.map((r) => r.duration));
+  const cvrMin = Math.min(...heatRows.map((r) => r.cvr));
+  const cvrMax = Math.max(...heatRows.map((r) => r.cvr));
 
   let html = `
     <div class="fb-utm-summary">
@@ -1503,7 +1508,7 @@ function renderFacebookUtmTable(container, result, dates) {
     </div>
     <div class="fb-utm-period">
       ${dates.startDate} → ${dates.endDate} · ${rows.length} landing page${rows.length === 1 ? "" : "s"}
-      <span class="fb-utm-legend">Duration &amp; CVR scale:
+      <span class="fb-utm-legend">Duration &amp; CVR scale (top ${Math.min(HEAT_TOP_N, rows.length)} by sessions):
         <span class="fb-utm-legend-bar"><i></i><i></i><i></i><i></i><i></i></span>
         low → high
       </span>
@@ -1523,23 +1528,29 @@ function renderFacebookUtmTable(container, result, dates) {
   `;
 
   const maxSess = Math.max(...rows.map((r) => r.sessions), 1);
-  for (const r of rows) {
+  rows.forEach((r, i) => {
     const barW = (r.sessions / maxSess) * 100;
-    const durT = scale(r.duration, durMin, durMax);
-    const cvrT = scale(r.cvr, cvrMin, cvrMax);
+    const inHeat = i < HEAT_TOP_N;
+    const durStyle = inHeat
+      ? `background:${heatBg(scale(r.duration, durMin, durMax))};color:${heatText(scale(r.duration, durMin, durMax))}`
+      : "";
+    const cvrStyle = inHeat
+      ? `background:${heatBg(scale(r.cvr, cvrMin, cvrMax))};color:${heatText(scale(r.cvr, cvrMin, cvrMax))}`
+      : "";
+    const heatCls = inHeat ? " fb-utm-heat" : "";
     html += `
-      <tr>
+      <tr${inHeat ? "" : ' class="fb-utm-row-dim"'}>
         <td class="fb-utm-col-path" title="${esc(r.path)}">${esc(r.path)}</td>
         <td class="fb-utm-col-num">
           <div class="fb-utm-cell-bar"><span class="fb-utm-bar" style="width:${barW}%"></span><span class="fb-utm-bar-val">${fmtNum(r.sessions)}</span></div>
         </td>
         <td class="fb-utm-col-num">${fmtRate(r.bounce)}</td>
-        <td class="fb-utm-col-num fb-utm-heat" style="background:${heatBg(durT)};color:${heatText(durT)}">${fmtDuration(r.duration)}</td>
+        <td class="fb-utm-col-num${heatCls}" style="${durStyle}">${fmtDuration(r.duration)}</td>
         <td class="fb-utm-col-num">${fmtRate(r.cartRate)}</td>
-        <td class="fb-utm-col-num fb-utm-heat" style="background:${heatBg(cvrT)};color:${heatText(cvrT)}">${fmtRate(r.cvr)}</td>
+        <td class="fb-utm-col-num${heatCls}" style="${cvrStyle}">${fmtRate(r.cvr)}</td>
       </tr>
     `;
-  }
+  });
 
   html += `</tbody></table>`;
   container.innerHTML = html;

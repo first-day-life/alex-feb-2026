@@ -1344,6 +1344,8 @@ ul { list-style: none; }
   transition: background .2s;
   font-weight: 600;
 }
+.fb-utm-row-dim td { color: var(--text2); }
+.fb-utm-row-dim .fb-utm-col-path { opacity: .7; }
 .fb-utm-table {
   width: 100%;
   border-collapse: collapse;
