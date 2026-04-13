@@ -1410,12 +1410,12 @@ async function loadFacebookUtmBreakdown() {
 
   // Break down Facebook traffic by landing page, with the 4 requested metrics.
   // ShopifyQL fields referenced (all part of the `sessions` table):
-  //   sessions, bounce_rate, average_session_duration, add_to_cart_rate
+  //   sessions, bounce_rate, average_session_duration, added_to_cart_rate
   const query = `
     FROM sessions
     SINCE ${startDate}
     UNTIL ${endDate}
-    SHOW sessions, bounce_rate, average_session_duration, add_to_cart_rate,
+    SHOW sessions, bounce_rate, average_session_duration, added_to_cart_rate,
          landing_page_path
     WHERE utm_source = 'facebook'
     GROUP BY landing_page_path
@@ -1444,7 +1444,7 @@ function renderFacebookUtmTable(container, result, dates) {
     sessions: coerceNum(r.sessions),
     bounce: coerceNum(r.bounce_rate),
     duration: coerceNum(r.average_session_duration),
-    cartRate: coerceNum(r.add_to_cart_rate),
+    cartRate: coerceNum(r.added_to_cart_rate),
   }));
 
   if (!rows.length) {
