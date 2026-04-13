@@ -1408,15 +1408,15 @@ async function loadFacebookUtmBreakdown() {
   const startDate = dateStartEl.value;
   const endDate = dateEndEl.value;
 
-  // Break down Facebook traffic by landing page, with the 4 requested metrics.
-  // ShopifyQL fields referenced (all part of the `sessions` table):
-  //   sessions, bounce_rate, average_session_duration, added_to_cart_rate
+  // Break down Facebook traffic by landing page.
+  // ShopifyQL fields (all part of the `sessions` table):
+  //   sessions, bounce_rate, average_session_duration, added_to_cart_rate, conversion_rate
   const query = `
     FROM sessions
     SINCE ${startDate}
     UNTIL ${endDate}
     SHOW sessions, bounce_rate, average_session_duration, added_to_cart_rate,
-         landing_page_path
+         conversion_rate, landing_page_path
     WHERE utm_source = 'facebook'
     GROUP BY landing_page_path
     ORDER BY sessions DESC
@@ -1445,6 +1445,7 @@ function renderFacebookUtmTable(container, result, dates) {
     bounce: coerceNum(r.bounce_rate),
     duration: coerceNum(r.average_session_duration),
     cartRate: coerceNum(r.added_to_cart_rate),
+    cvr: coerceNum(r.conversion_rate),
   }));
 
   if (!rows.length) {
@@ -1461,6 +1462,7 @@ function renderFacebookUtmTable(container, result, dates) {
   const avgBounce = wAvg("bounce");
   const avgDuration = wAvg("duration");
   const avgCart = wAvg("cartRate");
+  const avgCvr = wAvg("cvr");
 
   const fmtRate = (v) => {
     // ShopifyQL may return rates as 0-1 fractions or 0-100 percentages
@@ -1474,22 +1476,47 @@ function renderFacebookUtmTable(container, result, dates) {
     return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
   };
 
+  // White → green heat scale (shared so Duration and CVR can be visually correlated).
+  // t in [0,1] where 0 = row minimum, 1 = row maximum.
+  const heatBg = (t) => {
+    if (!isFinite(t)) return "transparent";
+    const clamped = Math.max(0, Math.min(1, t));
+    // Interpolate alpha on a green fill; background stays "white-ish" at t=0 so low values read white.
+    const alpha = (clamped * 0.55).toFixed(3); // 0 → 0, 1 → 0.55
+    return `rgba(34, 197, 94, ${alpha})`; // tailwind green-500
+  };
+  const heatText = (t) => (t > 0.55 ? "#0b3d1f" : "var(--text)");
+  const scale = (val, min, max) => (max > min ? (val - min) / (max - min) : 0);
+
+  const durMin = Math.min(...rows.map((r) => r.duration));
+  const durMax = Math.max(...rows.map((r) => r.duration));
+  const cvrMin = Math.min(...rows.map((r) => r.cvr));
+  const cvrMax = Math.max(...rows.map((r) => r.cvr));
+
   let html = `
     <div class="fb-utm-summary">
       <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtNum(totalSessions)}</span><span class="fb-utm-kpi-label">Total Sessions</span></div>
       <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtRate(avgBounce)}</span><span class="fb-utm-kpi-label">Avg Bounce Rate</span></div>
       <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtDuration(avgDuration)}</span><span class="fb-utm-kpi-label">Avg Session Duration</span></div>
       <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtRate(avgCart)}</span><span class="fb-utm-kpi-label">Avg Add-to-Cart Rate</span></div>
+      <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtRate(avgCvr)}</span><span class="fb-utm-kpi-label">Avg Conversion Rate</span></div>
     </div>
-    <div class="fb-utm-period">${dates.startDate} → ${dates.endDate} · ${rows.length} landing page${rows.length === 1 ? "" : "s"}</div>
+    <div class="fb-utm-period">
+      ${dates.startDate} → ${dates.endDate} · ${rows.length} landing page${rows.length === 1 ? "" : "s"}
+      <span class="fb-utm-legend">Duration &amp; CVR scale:
+        <span class="fb-utm-legend-bar"><i></i><i></i><i></i><i></i><i></i></span>
+        low → high
+      </span>
+    </div>
     <table class="fb-utm-table">
       <thead>
         <tr>
           <th class="fb-utm-col-path">Landing Page</th>
           <th class="fb-utm-col-num">Sessions</th>
           <th class="fb-utm-col-num">Bounce Rate</th>
-          <th class="fb-utm-col-num">Avg Session Duration</th>
+          <th class="fb-utm-col-num fb-utm-col-heat">Avg Session Duration</th>
           <th class="fb-utm-col-num">Add-to-Cart Rate</th>
+          <th class="fb-utm-col-num fb-utm-col-heat">Conversion Rate</th>
         </tr>
       </thead>
       <tbody>
@@ -1498,6 +1525,8 @@ function renderFacebookUtmTable(container, result, dates) {
   const maxSess = Math.max(...rows.map((r) => r.sessions), 1);
   for (const r of rows) {
     const barW = (r.sessions / maxSess) * 100;
+    const durT = scale(r.duration, durMin, durMax);
+    const cvrT = scale(r.cvr, cvrMin, cvrMax);
     html += `
       <tr>
         <td class="fb-utm-col-path" title="${esc(r.path)}">${esc(r.path)}</td>
@@ -1505,8 +1534,9 @@ function renderFacebookUtmTable(container, result, dates) {
           <div class="fb-utm-cell-bar"><span class="fb-utm-bar" style="width:${barW}%"></span><span class="fb-utm-bar-val">${fmtNum(r.sessions)}</span></div>
         </td>
         <td class="fb-utm-col-num">${fmtRate(r.bounce)}</td>
-        <td class="fb-utm-col-num">${fmtDuration(r.duration)}</td>
+        <td class="fb-utm-col-num fb-utm-heat" style="background:${heatBg(durT)};color:${heatText(durT)}">${fmtDuration(r.duration)}</td>
         <td class="fb-utm-col-num">${fmtRate(r.cartRate)}</td>
+        <td class="fb-utm-col-num fb-utm-heat" style="background:${heatBg(cvrT)};color:${heatText(cvrT)}">${fmtRate(r.cvr)}</td>
       </tr>
     `;
   }
