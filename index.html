@@ -190,6 +190,23 @@
     </div>
   </div>
 
+  <!-- Facebook row drill-down modal -->
+  <div id="fb-row-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content utm-modal-content">
+      <div class="utm-modal-header">
+        <h2>Facebook Ad Breakdown</h2>
+        <button id="fb-row-modal-close" class="btn btn-ghost utm-close-btn">&times;</button>
+      </div>
+      <p class="modal-desc" id="fb-row-modal-desc">Loading...</p>
+      <div class="fb-row-tabs">
+        <button class="fb-row-tab active" data-mode="campaign">By UTM Campaign</button>
+        <button class="fb-row-tab" data-mode="content">By UTM Content</button>
+      </div>
+      <div id="fb-row-modal-body"></div>
+    </div>
+  </div>
+
   <!-- UTM Diagnosis modal -->
   <div id="utm-modal" class="modal hidden">
     <div class="modal-backdrop"></div>

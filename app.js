@@ -118,6 +118,18 @@ function bindEvents() {
   // Facebook UTM refresh
   $("#fb-utm-refresh").addEventListener("click", loadFacebookUtmBreakdown);
 
+  // Facebook row drill-down modal
+  const fbRowModal = $("#fb-row-modal");
+  $("#fb-row-modal-close").addEventListener("click", () => fbRowModal.classList.add("hidden"));
+  fbRowModal.querySelector(".modal-backdrop").addEventListener("click", () => fbRowModal.classList.add("hidden"));
+  fbRowModal.querySelectorAll(".fb-row-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const mode = tab.dataset.mode;
+      fbRowModal.querySelectorAll(".fb-row-tab").forEach((t) => t.classList.toggle("active", t === tab));
+      loadFacebookRowBreakdown(mode);
+    });
+  });
+
   // Search
   searchEl.addEventListener("input", () => renderList());
 
@@ -1620,6 +1632,215 @@ function renderFacebookUtmTable(container, result, dates) {
 
   html += `</tbody></table>`;
   container.innerHTML = html;
+
+  // Click any row to drill into campaign/content breakdown for that landing page
+  container.querySelectorAll(".fb-utm-table tbody tr").forEach((tr, i) => {
+    const path = rows[i].path;
+    tr.classList.add("fb-utm-row-clickable");
+    tr.addEventListener("click", () => openFacebookRowDetail(path, dates));
+  });
+}
+
+// ── Facebook row drill-down (by campaign / by content) ────
+let fbRowModalState = { path: null, dates: null, mode: "campaign", cache: {} };
+
+function openFacebookRowDetail(path, dates) {
+  const modal = document.getElementById("fb-row-modal");
+  const desc = document.getElementById("fb-row-modal-desc");
+  const body = document.getElementById("fb-row-modal-body");
+
+  fbRowModalState = { path, dates, mode: "campaign", cache: {} };
+
+  modal.classList.remove("hidden");
+  desc.innerHTML = `Landing page: <code>${esc(path)}</code> · utm_source = <code>facebook</code> · ${dates.startDate} → ${dates.endDate}`;
+
+  // Reset tabs to default (campaign)
+  modal.querySelectorAll(".fb-row-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.mode === "campaign");
+  });
+  body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying Shopify...</div>`;
+  loadFacebookRowBreakdown("campaign");
+}
+
+async function loadFacebookRowBreakdown(mode) {
+  const { path, dates, cache } = fbRowModalState;
+  fbRowModalState.mode = mode;
+  const body = document.getElementById("fb-row-modal-body");
+
+  if (cache[mode]) {
+    renderFacebookRowBreakdown(body, cache[mode], mode);
+    return;
+  }
+
+  body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying by ${mode === "campaign" ? "utm_campaign" : "utm_content"}...</div>`;
+
+  const dim = mode === "campaign" ? "utm_campaign" : "utm_content";
+  const query = `
+    FROM sessions
+    SINCE ${dates.startDate}
+    UNTIL ${dates.endDate}
+    SHOW sessions, bounce_rate, average_session_duration, added_to_cart_rate,
+         conversion_rate, ${dim}
+    WHERE utm_source = 'facebook' AND landing_page_path = '${path.replace(/'/g, "''")}'
+    GROUP BY ${dim}
+    ORDER BY sessions DESC
+  `;
+
+  try {
+    const result = await executeShopifyQL(query);
+    cache[mode] = result;
+    renderFacebookRowBreakdown(body, result, mode);
+  } catch (err) {
+    body.innerHTML = `<div class="fb-utm-empty">
+      <p>Error:</p>
+      <p style="color:var(--red)">${esc(err.message).replace(/\n/g, "<br>")}</p>
+    </div>`;
+  }
+}
+
+function renderFacebookRowBreakdown(container, result, mode) {
+  const dim = mode === "campaign" ? "utm_campaign" : "utm_content";
+  const dimLabel = mode === "campaign" ? "Campaign" : "Content (ad)";
+  const rows = (result.rows || []).map((r) => ({
+    value: r[dim] || "(not set)",
+    sessions: coerceNum(r.sessions),
+    bounce: coerceNum(r.bounce_rate),
+    duration: coerceNum(r.average_session_duration),
+    cartRate: coerceNum(r.added_to_cart_rate),
+    cvr: coerceNum(r.conversion_rate),
+  }));
+
+  if (!rows.length) {
+    container.innerHTML = `<div class="fb-utm-empty">No ${dim} breakdown data.</div>`;
+    return;
+  }
+
+  const fmtRate = (v) => ((v <= 1 ? v * 100 : v)).toFixed(1) + "%";
+  const fmtDuration = (s) => {
+    if (!s) return "0s";
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
+
+  const totalSessions = rows.reduce((a, r) => a + r.sessions, 0);
+  const maxSess = Math.max(...rows.map((r) => r.sessions), 1);
+
+  let html = `
+    <div class="fb-row-summary">
+      <span><strong>${rows.length}</strong> ${dim}${rows.length === 1 ? "" : "s"}</span>
+      <span><strong>${fmtNum(totalSessions)}</strong> total Facebook sessions</span>
+    </div>
+    <table class="fb-utm-table fb-row-table">
+      <thead>
+        <tr>
+          <th>${dimLabel}</th>
+          <th class="fb-utm-col-num">Sessions</th>
+          <th class="fb-utm-col-num">Bounce</th>
+          <th class="fb-utm-col-num">Duration</th>
+          <th class="fb-utm-col-num">Cart Rate</th>
+          <th class="fb-utm-col-num">CVR</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const r of rows) {
+    const barW = (r.sessions / maxSess) * 100;
+    const decoded = mode === "content" ? renderDecodedContent(r.value) : "";
+    html += `
+      <tr>
+        <td class="fb-row-dim-cell">
+          <div class="fb-row-value">${esc(r.value)}</div>
+          ${decoded}
+        </td>
+        <td class="fb-utm-col-num">
+          <div class="fb-utm-cell-bar"><span class="fb-utm-bar" style="width:${barW}%"></span><span class="fb-utm-bar-val">${fmtNum(r.sessions)}</span></div>
+        </td>
+        <td class="fb-utm-col-num">${fmtRate(r.bounce)}</td>
+        <td class="fb-utm-col-num">${fmtDuration(r.duration)}</td>
+        <td class="fb-utm-col-num">${fmtRate(r.cartRate)}</td>
+        <td class="fb-utm-col-num"><strong>${fmtRate(r.cvr)}</strong></td>
+      </tr>
+    `;
+  }
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+// Decode a utm_content value to surface ad details.
+// Facebook ads frequently resolve dynamic placeholders like {{ad.id}},
+// {{ad.name}}, {{campaign.id}}, {{adset.id}} into the utm_content field, often
+// concatenated with delimiters (_, -, |, :). This function:
+//   1. URL-decodes the raw string (handles %20, etc.)
+//   2. Splits on common delimiters
+//   3. Classifies each token heuristically (FB numeric ID, aspect ratio,
+//      creative type keyword, placement, audience, date, etc.)
+function decodeUtmContent(raw) {
+  if (!raw || raw === "(not set)") return null;
+  let decoded = raw;
+  try { decoded = decodeURIComponent(raw); } catch (_) {}
+
+  // Primary split on strong delimiters, then on mixed ones
+  const tokens = decoded
+    .split(/[|\/]/)
+    .flatMap((s) => s.split(/[_\-:]+/))
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const creativeKeywords = /^(video|image|static|carousel|collection|reel|reels|ugc|ugc?\d*|dpa|dco|gif|photo|slideshow)$/i;
+  const placementKeywords = /^(feed|stories|story|reels|reel|instream|marketplace|inbox|messenger|audience|network|right|column|explore)$/i;
+  const aspectRatio = /^\d{1,2}[x:]\d{1,2}$/i; // 9x16, 1:1, 4x5
+  const dimension = /^\d{3,4}x\d{3,4}$/i;       // 1080x1920
+  const dateLike = /^20\d{2}[-._]?\d{1,2}[-._]?\d{1,2}$/;
+  const fbIdLike = /^\d{10,}$/; // Facebook IDs are typically 13-18 digits
+
+  const parts = tokens.map((t) => {
+    let kind = "part";
+    if (fbIdLike.test(t)) kind = "fb-id";
+    else if (aspectRatio.test(t) || dimension.test(t)) kind = "aspect";
+    else if (creativeKeywords.test(t)) kind = "creative";
+    else if (placementKeywords.test(t)) kind = "placement";
+    else if (dateLike.test(t)) kind = "date";
+    return { token: t, kind };
+  });
+
+  // Summary line highlighting the most useful inferred fields
+  const fbIds = parts.filter((p) => p.kind === "fb-id").map((p) => p.token);
+  const creatives = parts.filter((p) => p.kind === "creative").map((p) => p.token);
+  const placements = parts.filter((p) => p.kind === "placement").map((p) => p.token);
+  const aspects = parts.filter((p) => p.kind === "aspect").map((p) => p.token);
+  const dates = parts.filter((p) => p.kind === "date").map((p) => p.token);
+
+  return { raw, decoded, parts, fbIds, creatives, placements, aspects, dates };
+}
+
+function renderDecodedContent(raw) {
+  const info = decodeUtmContent(raw);
+  if (!info) return "";
+  const chipFor = (p) => {
+    const cls = `fb-chip fb-chip-${p.kind}`;
+    const label = p.kind === "fb-id"
+      ? `<a href="https://business.facebook.com/adsmanager/manage/ads?search=${encodeURIComponent(p.token)}" target="_blank" rel="noopener">${esc(p.token)} ↗</a>`
+      : esc(p.token);
+    return `<span class="${cls}" data-kind="${p.kind}">${label}</span>`;
+  };
+
+  const summary = [];
+  if (info.creatives.length) summary.push(`<strong>Creative:</strong> ${info.creatives.map(esc).join(", ")}`);
+  if (info.placements.length) summary.push(`<strong>Placement:</strong> ${info.placements.map(esc).join(", ")}`);
+  if (info.aspects.length) summary.push(`<strong>Aspect:</strong> ${info.aspects.map(esc).join(", ")}`);
+  if (info.fbIds.length) summary.push(`<strong>FB ID:</strong> ${info.fbIds.map(esc).join(", ")}`);
+  if (info.dates.length) summary.push(`<strong>Date:</strong> ${info.dates.map(esc).join(", ")}`);
+
+  return `
+    <div class="fb-decoded">
+      <div class="fb-decoded-parts">${info.parts.map(chipFor).join("")}</div>
+      ${summary.length ? `<div class="fb-decoded-summary">${summary.join(" · ")}</div>` : ""}
+      ${info.decoded !== info.raw ? `<div class="fb-decoded-raw">Decoded: <code>${esc(info.decoded)}</code></div>` : ""}
+    </div>
+  `;
 }
 
 function weightedLinFit(points) {
