@@ -884,14 +884,26 @@ function drawSessionsCvrChart(page) {
     ctx.fillText(lbl, x, pad.top + ch + 6);
   }
 
-  // Axis titles
-  ctx.fillStyle = accentColor;
-  ctx.textAlign = "center";
+  // Axis titles (rotated Y-axis labels)
   ctx.font = "600 10px Inter, sans-serif";
-  ctx.fillText("Sessions", pad.left / 2, H - 4);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 
+  // Left Y-axis: "Sessions"
+  ctx.save();
+  ctx.translate(12, pad.top + ch / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = accentColor;
+  ctx.fillText("Sessions", 0, 0);
+  ctx.restore();
+
+  // Right Y-axis: "CVR %"
+  ctx.save();
+  ctx.translate(W - 12, pad.top + ch / 2);
+  ctx.rotate(Math.PI / 2);
   ctx.fillStyle = cvrColor;
-  ctx.fillText("CVR %", W - pad.right / 2, H - 4);
+  ctx.fillText("CVR %", 0, 0);
+  ctx.restore();
 }
 
 // ── Compare table funnel ────────────────────────────
@@ -1278,36 +1290,47 @@ async function openUtmDiagnosis(page) {
   const startDate = dateStartEl.value;
   const endDate = dateEndEl.value;
 
+  // Compute previous period (same length, immediately before current range)
+  const startMs = new Date(startDate).getTime();
+  const endMs = new Date(endDate).getTime();
+  const periodLen = endMs - startMs;
+  const prevEnd = new Date(startMs - 86400000); // day before current start
+  const prevStart = new Date(prevEnd.getTime() - periodLen);
+  const prevStartDate = prevStart.toISOString().slice(0, 10);
+  const prevEndDate = prevEnd.toISOString().slice(0, 10);
+
   try {
-    // Query 1: Sessions by utm_source / utm_medium for this landing page
-    const sessionsQuery = `
+    const makeSessionsQuery = (since, until) => `
       FROM sessions
-      SINCE ${startDate}
-      UNTIL ${endDate}
+      SINCE ${since}
+      UNTIL ${until}
       SHOW sessions, sessions_that_completed_checkout, conversion_rate,
            utm_source, utm_medium
       WHERE landing_page_path = '${pagePath}'
       GROUP BY utm_source, utm_medium
       ORDER BY sessions DESC
     `;
-
-    body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying sessions by UTM source/medium...</div>`;
-    const sessionsResult = await executeShopifyQL(sessionsQuery);
-
-    // Query 2: Overall totals for this landing page (for CVR calc)
-    const totalsQuery = `
+    const makeTotalsQuery = (since, until) => `
       FROM sessions
-      SINCE ${startDate}
-      UNTIL ${endDate}
+      SINCE ${since}
+      UNTIL ${until}
       SHOW sessions, sessions_that_completed_checkout, conversion_rate
       WHERE landing_page_path = '${pagePath}'
     `;
 
-    body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying totals...</div>`;
-    const totalsResult = await executeShopifyQL(totalsQuery);
+    body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying current &amp; previous period...</div>`;
+
+    // Run current and previous period queries in parallel
+    const [sessionsResult, totalsResult, prevSessionsResult, prevTotalsResult] = await Promise.all([
+      executeShopifyQL(makeSessionsQuery(startDate, endDate)),
+      executeShopifyQL(makeTotalsQuery(startDate, endDate)),
+      executeShopifyQL(makeSessionsQuery(prevStartDate, prevEndDate)),
+      executeShopifyQL(makeTotalsQuery(prevStartDate, prevEndDate)),
+    ]);
 
     const analysis = buildUtmAnalysis(sessionsResult, totalsResult);
-    renderUtmAnalysis(body, analysis, page);
+    const prevAnalysis = buildUtmAnalysis(prevSessionsResult, prevTotalsResult);
+    renderUtmAnalysis(body, analysis, prevAnalysis, { startDate, endDate, prevStartDate, prevEndDate });
   } catch (err) {
     body.innerHTML = `<div class="utm-empty">
       <p>Error querying Shopify:</p>
@@ -1336,16 +1359,37 @@ function buildUtmAnalysis(sessionsResult, totalsResult) {
     cvr: coerceNum(r.conversion_rate),
   }));
 
-  // Totals row
+  // Build a lookup map keyed by "source / medium"
+  const byKey = {};
+  for (const row of rows) byKey[`${row.source} / ${row.medium}`] = row;
+
   const totRow = totalsResult.rows[0] || {};
   const totalSessions = coerceNum(totRow.sessions);
   const totalOrders = coerceNum(totRow.sessions_that_completed_checkout);
-  const totalRevenue = 0; // not available on sessions table
 
-  return { rows, totalSessions, totalOrders, totalRevenue };
+  return { rows, byKey, totalSessions, totalOrders };
 }
 
-function renderUtmAnalysis(container, analysis, page) {
+function fmtDelta(current, previous) {
+  if (!previous) return `<span class="utm-delta utm-delta-new">NEW</span>`;
+  const diff = current - previous;
+  if (diff === 0) return `<span class="utm-delta utm-delta-flat">—</span>`;
+  const pct = previous !== 0 ? ((diff / previous) * 100).toFixed(0) : (diff > 0 ? "∞" : "-∞");
+  const sign = diff > 0 ? "+" : "";
+  const cls = diff > 0 ? "utm-delta-up" : "utm-delta-down";
+  return `<span class="utm-delta ${cls}">${sign}${pct}%</span>`;
+}
+
+function fmtDeltaPts(current, previous) {
+  if (previous == null) return `<span class="utm-delta utm-delta-new">NEW</span>`;
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.005) return `<span class="utm-delta utm-delta-flat">—</span>`;
+  const sign = diff > 0 ? "+" : "";
+  const cls = diff > 0 ? "utm-delta-up" : "utm-delta-down";
+  return `<span class="utm-delta ${cls}">${sign}${diff.toFixed(2)}pp</span>`;
+}
+
+function renderUtmAnalysis(container, analysis, prevAnalysis, dates) {
   if (!analysis.rows.length) {
     container.innerHTML = `<div class="utm-empty">
       <p>No session data found for this landing page in the selected date range.</p>
@@ -1357,11 +1401,30 @@ function renderUtmAnalysis(container, analysis, page) {
   const overallCvr = analysis.totalSessions > 0
     ? ((analysis.totalOrders / analysis.totalSessions) * 100).toFixed(2)
     : "0.00";
+  const prevCvr = prevAnalysis.totalSessions > 0
+    ? ((prevAnalysis.totalOrders / prevAnalysis.totalSessions) * 100).toFixed(2)
+    : "0.00";
 
-  let html = `<div class="utm-summary">
-    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalSessions)}</span><span class="utm-stat-label">Sessions</span></div>
-    <div class="utm-stat"><span class="utm-stat-value">${fmtNum(analysis.totalOrders)}</span><span class="utm-stat-label">Checkouts</span></div>
-    <div class="utm-stat"><span class="utm-stat-value">${overallCvr}%</span><span class="utm-stat-label">CVR</span></div>
+  let html = `<div class="utm-period-label" style="font-size:11px;color:var(--text2);margin-bottom:8px">
+    Current: ${dates.startDate} → ${dates.endDate} &nbsp;|&nbsp; Previous: ${dates.prevStartDate} → ${dates.prevEndDate}
+  </div>`;
+
+  html += `<div class="utm-summary">
+    <div class="utm-stat">
+      <span class="utm-stat-value">${fmtNum(analysis.totalSessions)}</span>
+      ${fmtDelta(analysis.totalSessions, prevAnalysis.totalSessions)}
+      <span class="utm-stat-label">Sessions</span>
+    </div>
+    <div class="utm-stat">
+      <span class="utm-stat-value">${fmtNum(analysis.totalOrders)}</span>
+      ${fmtDelta(analysis.totalOrders, prevAnalysis.totalOrders)}
+      <span class="utm-stat-label">Checkouts</span>
+    </div>
+    <div class="utm-stat">
+      <span class="utm-stat-value">${overallCvr}%</span>
+      ${fmtDeltaPts(parseFloat(overallCvr), parseFloat(prevCvr))}
+      <span class="utm-stat-label">CVR</span>
+    </div>
   </div>`;
 
   // Find max sessions for relative bars
@@ -1377,7 +1440,11 @@ function renderUtmAnalysis(container, analysis, page) {
     </tr></thead><tbody>`;
 
   for (const row of analysis.rows) {
+    const key = `${row.source} / ${row.medium}`;
+    const prev = prevAnalysis.byKey[key];
+
     const cvr = row.sessions > 0 ? ((row.orders / row.sessions) * 100).toFixed(2) : "0.00";
+    const prevRowCvr = prev && prev.sessions > 0 ? ((prev.orders / prev.sessions) * 100) : null;
     const trafficPct = analysis.totalSessions > 0
       ? ((row.sessions / analysis.totalSessions) * 100).toFixed(1)
       : "0.0";
@@ -1395,9 +1462,9 @@ function renderUtmAnalysis(container, analysis, page) {
           <div class="utm-source-bar"><div class="utm-source-bar-fill" style="width:${barWidth}%"></div></div>
         </div>
       </td>
-      <td class="utm-num">${fmtNum(row.sessions)}</td>
-      <td class="utm-num">${fmtNum(row.orders)}</td>
-      <td class="utm-num ${cvrClass}">${cvr}%</td>
+      <td class="utm-num">${fmtNum(row.sessions)} ${fmtDelta(row.sessions, prev ? prev.sessions : null)}</td>
+      <td class="utm-num">${fmtNum(row.orders)} ${fmtDelta(row.orders, prev ? prev.orders : null)}</td>
+      <td class="utm-num ${cvrClass}">${cvr}% ${fmtDeltaPts(parseFloat(cvr), prevRowCvr)}</td>
       <td class="utm-num">${trafficPct}%</td>
     </tr>`;
   }
