@@ -1498,6 +1498,37 @@ function renderFacebookUtmTable(container, result, dates) {
   const cvrMin = Math.min(...heatRows.map((r) => r.cvr));
   const cvrMax = Math.max(...heatRows.map((r) => r.cvr));
 
+  // ── CVR predictor: weighted linear regression CVR = a + b × duration ──
+  // Fit uses top-N only (same scope as the heat scale — avoids long-tail noise).
+  // Weights = sessions so high-traffic pages dominate the fit.
+  // Compute predicted CVR for every row, plus residual (actual − predicted) and
+  // a z-score against the top-N residual std-dev, to flag CVR "issues".
+  const fit = weightedLinFit(
+    heatRows.map((r) => ({ x: r.duration, y: r.cvr, w: Math.max(r.sessions, 1) }))
+  );
+  // R² across the top-N (weighted)
+  let ssRes = 0, ssTot = 0, wSum = 0, wMean = 0;
+  heatRows.forEach((r) => { wSum += r.sessions; wMean += r.sessions * r.cvr; });
+  wMean = wSum > 0 ? wMean / wSum : 0;
+  heatRows.forEach((r) => {
+    const pred = fit.a + fit.b * r.duration;
+    ssRes += r.sessions * (r.cvr - pred) ** 2;
+    ssTot += r.sessions * (r.cvr - wMean) ** 2;
+  });
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+
+  // Attach predicted CVR and residual to every row (including long tail, for reference)
+  rows.forEach((r) => {
+    r.predCvr = fit.a + fit.b * r.duration;
+    r.residual = r.cvr - r.predCvr;
+  });
+  // Residual stdev within the top-N only, for z-score-based flagging
+  const topResiduals = heatRows.map((r) => r.residual);
+  const meanRes = topResiduals.reduce((a, v) => a + v, 0) / (topResiduals.length || 1);
+  const varRes = topResiduals.reduce((a, v) => a + (v - meanRes) ** 2, 0) / (topResiduals.length || 1);
+  const sdRes = Math.sqrt(varRes);
+  const maxAbsRes = Math.max(...heatRows.map((r) => Math.abs(r.residual)), 1e-9);
+
   let html = `
     <div class="fb-utm-summary">
       <div class="fb-utm-kpi"><span class="fb-utm-kpi-value">${fmtNum(totalSessions)}</span><span class="fb-utm-kpi-label">Total Sessions</span></div>
@@ -1513,6 +1544,13 @@ function renderFacebookUtmTable(container, result, dates) {
         low → high
       </span>
     </div>
+    <div class="fb-utm-fit">
+      <strong>CVR predictor:</strong>
+      <code>CVR ≈ ${(fit.a <= 1 ? fit.a * 100 : fit.a).toFixed(2)}% + ${(fit.b <= 1 ? fit.b * 100 : fit.b).toFixed(4)}%/sec × duration</code>
+      · R² = ${r2.toFixed(2)}
+      · fit on top ${heatRows.length} by sessions
+      <span class="fb-utm-fit-hint">Rows with a red Δ have lower CVR than duration would predict — check these first.</span>
+    </div>
     <table class="fb-utm-table">
       <thead>
         <tr>
@@ -1522,10 +1560,31 @@ function renderFacebookUtmTable(container, result, dates) {
           <th class="fb-utm-col-num fb-utm-col-heat">Avg Session Duration</th>
           <th class="fb-utm-col-num">Add-to-Cart Rate</th>
           <th class="fb-utm-col-num fb-utm-col-heat">Conversion Rate</th>
+          <th class="fb-utm-col-num">Projected CVR</th>
+          <th class="fb-utm-col-num">Δ vs Projected</th>
         </tr>
       </thead>
       <tbody>
   `;
+
+  // Diverging color for residuals: red for below-projection, green for above.
+  // Intensity scales to the largest |residual| in the top-N so colors are comparable.
+  const residualBg = (res, applyColor) => {
+    if (!applyColor || !isFinite(res)) return "";
+    const t = Math.max(-1, Math.min(1, res / maxAbsRes));
+    const alpha = (Math.abs(t) * 0.55).toFixed(3);
+    const rgb = t < 0 ? "239, 68, 68" /* red-500 */ : "34, 197, 94" /* green-500 */;
+    return `background:rgba(${rgb}, ${alpha})`;
+  };
+  // Units: rates may be 0–1 or 0–100. Infer scale from mean absolute CVR.
+  const avgAbsCvr = heatRows.reduce((a, r) => a + Math.abs(r.cvr), 0) / (heatRows.length || 1);
+  const rateScale = avgAbsCvr <= 1 ? 100 : 1; // multiply to render as percentage points
+  const fmtDeltaPct = (res) => {
+    const pp = res * rateScale;
+    const sign = pp > 0 ? "+" : "";
+    return `${sign}${pp.toFixed(2)} pp`;
+  };
+  const SIG_Z = 1.0; // |residual| > 1σ flagged as "investigate"
 
   const maxSess = Math.max(...rows.map((r) => r.sessions), 1);
   rows.forEach((r, i) => {
@@ -1538,9 +1597,14 @@ function renderFacebookUtmTable(container, result, dates) {
       ? `background:${heatBg(scale(r.cvr, cvrMin, cvrMax))};color:${heatText(scale(r.cvr, cvrMin, cvrMax))}`
       : "";
     const heatCls = inHeat ? " fb-utm-heat" : "";
+
+    // Residual column is colored only for top-N rows (same scope as the fit)
+    const z = sdRes > 0 ? r.residual / sdRes : 0;
+    const flag = inHeat && z <= -SIG_Z ? '<span class="fb-utm-flag" title="CVR below projection by >1σ — investigate">⚠</span>' : "";
+
     html += `
       <tr${inHeat ? "" : ' class="fb-utm-row-dim"'}>
-        <td class="fb-utm-col-path" title="${esc(r.path)}">${esc(r.path)}</td>
+        <td class="fb-utm-col-path" title="${esc(r.path)}">${flag}${esc(r.path)}</td>
         <td class="fb-utm-col-num">
           <div class="fb-utm-cell-bar"><span class="fb-utm-bar" style="width:${barW}%"></span><span class="fb-utm-bar-val">${fmtNum(r.sessions)}</span></div>
         </td>
@@ -1548,12 +1612,29 @@ function renderFacebookUtmTable(container, result, dates) {
         <td class="fb-utm-col-num${heatCls}" style="${durStyle}">${fmtDuration(r.duration)}</td>
         <td class="fb-utm-col-num">${fmtRate(r.cartRate)}</td>
         <td class="fb-utm-col-num${heatCls}" style="${cvrStyle}">${fmtRate(r.cvr)}</td>
+        <td class="fb-utm-col-num">${fmtRate(r.predCvr)}</td>
+        <td class="fb-utm-col-num fb-utm-delta" style="${residualBg(r.residual, inHeat)}">${fmtDeltaPct(r.residual)}</td>
       </tr>
     `;
   });
 
   html += `</tbody></table>`;
   container.innerHTML = html;
+}
+
+function weightedLinFit(points) {
+  let sw = 0, swx = 0, swy = 0, swxx = 0, swxy = 0;
+  for (const p of points) {
+    const w = p.w || 1;
+    sw += w; swx += w * p.x; swy += w * p.y;
+    swxx += w * p.x * p.x; swxy += w * p.x * p.y;
+  }
+  if (!sw) return { a: 0, b: 0 };
+  const denom = sw * swxx - swx * swx;
+  if (Math.abs(denom) < 1e-12) return { a: swy / sw, b: 0 };
+  const b = (sw * swxy - swx * swy) / denom;
+  const a = (swy - b * swx) / sw;
+  return { a, b };
 }
 
 function coerceNum(v) {
