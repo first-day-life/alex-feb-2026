@@ -1980,10 +1980,44 @@ function renderUtmAnalysis(container, analysis, prevAnalysis, adAnalysis, prevAd
     </div>
   </div>`;
 
-  // Find max sessions for relative bars
-  const maxSess = Math.max(...analysis.rows.map((r) => r.sessions), 1);
+  html += `
+    <div class="utm-tabs">
+      <button class="utm-tab active" data-tab="source">Source / Medium</button>
+      <button class="utm-tab" data-tab="ad">By Ad (utm_content)</button>
+    </div>
+    <div class="utm-tab-panel" id="utm-panel-source"></div>
+    <div class="utm-tab-panel hidden" id="utm-panel-ad"></div>
+  `;
 
-  html += `<div class="utm-table-wrap"><table class="utm-table">
+  container.innerHTML = html;
+
+  // Render the source/medium table into its panel
+  container.querySelector("#utm-panel-source").innerHTML =
+    renderSourceMediumTable(analysis, prevAnalysis, overallCvr);
+
+  // Init the ad breakdown into its panel (lazy: render only when activated)
+  let adInitialized = false;
+  const adPanel = container.querySelector("#utm-panel-ad");
+
+  container.querySelectorAll(".utm-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      container.querySelectorAll(".utm-tab").forEach((b) => b.classList.toggle("active", b === btn));
+      container.querySelector("#utm-panel-source").classList.toggle("hidden", tab !== "source");
+      adPanel.classList.toggle("hidden", tab !== "ad");
+      if (tab === "ad" && !adInitialized) {
+        initAdBreakdown(adPanel, adAnalysis, prevAdAnalysis);
+        adInitialized = true;
+      }
+    });
+  });
+}
+
+function renderSourceMediumTable(analysis, prevAnalysis, overallCvr) {
+  const maxSess = Math.max(...analysis.rows.map((r) => r.sessions), 1);
+  const overallNum = parseFloat(overallCvr);
+
+  let html = `<div class="utm-table-wrap utm-table-wrap-tab"><table class="utm-table">
     <thead><tr>
       <th>Source / Medium</th>
       <th>Sessions</th>
@@ -1995,18 +2029,13 @@ function renderUtmAnalysis(container, analysis, prevAnalysis, adAnalysis, prevAd
   for (const row of analysis.rows) {
     const key = `${row.source} / ${row.medium}`;
     const prev = prevAnalysis.byKey[key];
-
     const cvr = row.sessions > 0 ? ((row.orders / row.sessions) * 100).toFixed(2) : "0.00";
     const prevRowCvr = prev && prev.sessions > 0 ? ((prev.orders / prev.sessions) * 100) : null;
     const trafficPct = analysis.totalSessions > 0
       ? ((row.sessions / analysis.totalSessions) * 100).toFixed(1)
       : "0.0";
     const barWidth = (row.sessions / maxSess) * 100;
-
-    // Color CVR: green if above overall, red if below
-    const cvrNum = parseFloat(cvr);
-    const overallNum = parseFloat(overallCvr);
-    const cvrClass = cvrNum >= overallNum ? "utm-cvr-good" : "utm-cvr-bad";
+    const cvrClass = parseFloat(cvr) >= overallNum ? "utm-cvr-good" : "utm-cvr-bad";
 
     html += `<tr>
       <td>
@@ -2023,12 +2052,7 @@ function renderUtmAnalysis(container, analysis, prevAnalysis, adAnalysis, prevAd
   }
 
   html += `</tbody></table></div>`;
-
-  html += `<div id="utm-ad-section" class="utm-ad-section"></div>`;
-
-  container.innerHTML = html;
-
-  initAdBreakdown(container.querySelector("#utm-ad-section"), adAnalysis, prevAdAnalysis);
+  return html;
 }
 
 function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
@@ -2071,7 +2095,7 @@ function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
     if (!filtered.length) {
       tableHtml = `<div class="utm-empty" style="padding:14px">No ads for this source/medium.</div>`;
     } else {
-      tableHtml = `<div class="utm-table-wrap"><table class="utm-table">
+      tableHtml = `<div class="utm-table-wrap utm-table-wrap-tab"><table class="utm-table">
         <thead><tr>
           <th>Ad</th>
           <th>Sessions</th>
