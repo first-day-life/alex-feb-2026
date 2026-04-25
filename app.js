@@ -1359,9 +1359,9 @@ async function openUtmDiagnosis(page) {
       SINCE ${since}
       UNTIL ${until}
       SHOW sessions, sessions_that_completed_checkout, conversion_rate,
-           utm_content
+           utm_content, utm_source, utm_medium
       WHERE landing_page_path = '${pagePath}'
-      GROUP BY utm_content
+      GROUP BY utm_content, utm_source, utm_medium
       ORDER BY sessions DESC
     `;
 
@@ -1901,20 +1901,23 @@ function buildUtmAnalysis(sessionsResult, totalsResult) {
   return { rows, byKey, totalSessions, totalOrders };
 }
 
-// Group sessions for this landing page by utm_content (ad name).
+// Group sessions for this landing page by utm_content (ad name) per source/medium.
 // Excludes blank utm_content (typically organic/direct) so the table focuses on ads.
 function buildAdAnalysis(sessionsResult) {
   const rows = sessionsResult.rows
     .map((r) => ({
       ad: r.utm_content || "",
+      source: r.utm_source || "(direct)",
+      medium: r.utm_medium || "(none)",
       sessions: coerceNum(r.sessions),
       orders: coerceNum(r.sessions_that_completed_checkout),
       cvr: coerceNum(r.conversion_rate),
     }))
     .filter((r) => r.ad);
 
+  // Key includes source/medium so the same ad name under different sources doesn't merge.
   const byKey = {};
-  for (const row of rows) byKey[row.ad] = row;
+  for (const row of rows) byKey[`${row.source} / ${row.medium}|${row.ad}`] = row;
   const totalSessions = rows.reduce((s, r) => s + r.sessions, 0);
   const totalOrders = rows.reduce((s, r) => s + r.orders, 0);
   return { rows, byKey, totalSessions, totalOrders };
@@ -2021,61 +2024,112 @@ function renderUtmAnalysis(container, analysis, prevAnalysis, adAnalysis, prevAd
 
   html += `</tbody></table></div>`;
 
-  html += renderAdBreakdownSection(adAnalysis, prevAdAnalysis);
+  html += `<div id="utm-ad-section" class="utm-ad-section"></div>`;
 
   container.innerHTML = html;
+
+  initAdBreakdown(container.querySelector("#utm-ad-section"), adAnalysis, prevAdAnalysis);
 }
 
-function renderAdBreakdownSection(adAnalysis, prevAdAnalysis) {
+function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
   if (!adAnalysis.rows.length) {
-    return `<div class="utm-ad-section">
+    container.innerHTML = `
       <h3 class="utm-ad-heading">By Ad (utm_content)</h3>
-      <div class="utm-empty" style="padding:14px">No <code>utm_content</code> values found for this landing page in the selected range.</div>
-    </div>`;
+      <div class="utm-empty" style="padding:14px">No <code>utm_content</code> values found for this landing page in the selected range.</div>`;
+    return;
   }
 
-  const overallCvr = adAnalysis.totalSessions > 0
-    ? (adAnalysis.totalOrders / adAnalysis.totalSessions) * 100
-    : 0;
-  const maxSess = Math.max(...adAnalysis.rows.map((r) => r.sessions), 1);
+  // Tally sessions per source/medium combo, sorted desc — drives the filter pills.
+  const comboTotals = {};
+  for (const r of adAnalysis.rows) {
+    const k = `${r.source} / ${r.medium}`;
+    comboTotals[k] = (comboTotals[k] || 0) + r.sessions;
+  }
+  const combos = Object.entries(comboTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([combo, sessions]) => ({ combo, sessions }));
 
-  let html = `<div class="utm-ad-section">
-    <h3 class="utm-ad-heading">By Ad (utm_content) <span class="utm-ad-sub">${adAnalysis.rows.length} ad${adAnalysis.rows.length === 1 ? "" : "s"} · ${fmtNum(adAnalysis.totalSessions)} sessions</span></h3>
-    <div class="utm-table-wrap"><table class="utm-table">
-      <thead><tr>
-        <th>Ad</th>
-        <th>Sessions</th>
-        <th>Checkouts</th>
-        <th>CVR</th>
-        <th>% of Ad Traffic</th>
-      </tr></thead><tbody>`;
+  const ALL = "__all__";
+  let active = combos[0].combo; // default to top combo
 
-  for (const row of adAnalysis.rows) {
-    const prev = prevAdAnalysis.byKey[row.ad];
-    const cvr = row.sessions > 0 ? (row.orders / row.sessions) * 100 : 0;
-    const prevRowCvr = prev && prev.sessions > 0 ? (prev.orders / prev.sessions) * 100 : null;
-    const trafficPct = adAnalysis.totalSessions > 0
-      ? ((row.sessions / adAnalysis.totalSessions) * 100).toFixed(1)
-      : "0.0";
-    const barWidth = (row.sessions / maxSess) * 100;
-    const cvrClass = cvr >= overallCvr ? "utm-cvr-good" : "utm-cvr-bad";
-    const decoded = renderDecodedContent(row.ad);
+  function render() {
+    const filtered = active === ALL
+      ? adAnalysis.rows
+      : adAnalysis.rows.filter((r) => `${r.source} / ${r.medium}` === active);
 
-    html += `<tr>
-      <td>
-        <div class="utm-source-cell">
-          <span class="utm-source-name">${esc(row.ad)}</span>
-          <div class="utm-source-bar"><div class="utm-source-bar-fill" style="width:${barWidth}%"></div></div>
-          ${decoded}
-        </div>
-      </td>
-      <td class="utm-num">${fmtNum(row.sessions)} ${fmtDelta(row.sessions, prev ? prev.sessions : null)}</td>
-      <td class="utm-num">${fmtNum(row.orders)} ${fmtDelta(row.orders, prev ? prev.orders : null)}</td>
-      <td class="utm-num ${cvrClass}">${cvr.toFixed(2)}% ${fmtDeltaPts(cvr, prevRowCvr)}</td>
-      <td class="utm-num">${trafficPct}%</td>
-    </tr>`;
+    const filteredSessions = filtered.reduce((s, r) => s + r.sessions, 0);
+    const filteredOrders = filtered.reduce((s, r) => s + r.orders, 0);
+    const overallCvr = filteredSessions > 0 ? (filteredOrders / filteredSessions) * 100 : 0;
+    const maxSess = Math.max(...filtered.map((r) => r.sessions), 1);
+
+    const pillHtml = [
+      `<button class="utm-src-pill ${active === ALL ? "active" : ""}" data-combo="${ALL}">All <span class="utm-src-pill-count">${fmtNum(adAnalysis.totalSessions)}</span></button>`,
+      ...combos.map((c, i) => `<button class="utm-src-pill ${active === c.combo ? "active" : ""}" data-combo-idx="${i}">${esc(c.combo)} <span class="utm-src-pill-count">${fmtNum(c.sessions)}</span></button>`),
+    ].join("");
+
+    let tableHtml;
+    if (!filtered.length) {
+      tableHtml = `<div class="utm-empty" style="padding:14px">No ads for this source/medium.</div>`;
+    } else {
+      tableHtml = `<div class="utm-table-wrap"><table class="utm-table">
+        <thead><tr>
+          <th>Ad</th>
+          <th>Sessions</th>
+          <th>Checkouts</th>
+          <th>CVR</th>
+          <th>% of Filter</th>
+        </tr></thead><tbody>`;
+
+      for (const row of filtered) {
+        const prev = prevAdAnalysis.byKey[`${row.source} / ${row.medium}|${row.ad}`];
+        const cvr = row.sessions > 0 ? (row.orders / row.sessions) * 100 : 0;
+        const prevRowCvr = prev && prev.sessions > 0 ? (prev.orders / prev.sessions) * 100 : null;
+        const trafficPct = filteredSessions > 0
+          ? ((row.sessions / filteredSessions) * 100).toFixed(1)
+          : "0.0";
+        const barWidth = (row.sessions / maxSess) * 100;
+        const cvrClass = cvr >= overallCvr ? "utm-cvr-good" : "utm-cvr-bad";
+        const decoded = renderDecodedContent(row.ad);
+        const showSrc = active === ALL
+          ? `<span class="utm-ad-src-tag">${esc(row.source)} / ${esc(row.medium)}</span>`
+          : "";
+
+        tableHtml += `<tr>
+          <td>
+            <div class="utm-source-cell">
+              <span class="utm-source-name">${esc(row.ad)}</span>
+              ${showSrc}
+              <div class="utm-source-bar"><div class="utm-source-bar-fill" style="width:${barWidth}%"></div></div>
+              ${decoded}
+            </div>
+          </td>
+          <td class="utm-num">${fmtNum(row.sessions)} ${fmtDelta(row.sessions, prev ? prev.sessions : null)}</td>
+          <td class="utm-num">${fmtNum(row.orders)} ${fmtDelta(row.orders, prev ? prev.orders : null)}</td>
+          <td class="utm-num ${cvrClass}">${cvr.toFixed(2)}% ${fmtDeltaPts(cvr, prevRowCvr)}</td>
+          <td class="utm-num">${trafficPct}%</td>
+        </tr>`;
+      }
+      tableHtml += `</tbody></table></div>`;
+    }
+
+    container.innerHTML = `
+      <div class="utm-ad-header">
+        <h3 class="utm-ad-heading">By Ad (utm_content)
+          <span class="utm-ad-sub">${filtered.length} ad${filtered.length === 1 ? "" : "s"} · ${fmtNum(filteredSessions)} sessions</span>
+        </h3>
+      </div>
+      <div class="utm-ad-filter">${pillHtml}</div>
+      ${tableHtml}
+    `;
+
+    container.querySelectorAll(".utm-src-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.combo === ALL) active = ALL;
+        else active = combos[parseInt(btn.dataset.comboIdx, 10)].combo;
+        render();
+      });
+    });
   }
 
-  html += `</tbody></table></div></div>`;
-  return html;
+  render();
 }
