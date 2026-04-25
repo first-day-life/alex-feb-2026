@@ -1981,14 +1981,25 @@ function buildUtmAnalysis(sessionsResult, totalsResult) {
 // Excludes blank utm_content (typically organic/direct) so the table focuses on ads.
 function buildAdAnalysis(sessionsResult) {
   const rows = sessionsResult.rows
-    .map((r) => ({
-      ad: r.utm_content || "",
-      source: r.utm_source || "(direct)",
-      medium: r.utm_medium || "(none)",
-      sessions: coerceNum(r.sessions),
-      orders: coerceNum(r.sessions_that_completed_checkout),
-      cvr: coerceNum(r.conversion_rate),
-    }))
+    .map((r) => {
+      const ad = r.utm_content || "";
+      let decoded = ad;
+      try { decoded = decodeURIComponent(ad); } catch (_) {}
+      const { pairs } = parseStructuredContent(decoded);
+      const parsed = {};
+      for (const p of pairs) {
+        if (parsed[p.key] == null) parsed[p.key] = p.value;
+      }
+      return {
+        ad,
+        source: r.utm_source || "(direct)",
+        medium: r.utm_medium || "(none)",
+        sessions: coerceNum(r.sessions),
+        orders: coerceNum(r.sessions_that_completed_checkout),
+        cvr: coerceNum(r.conversion_rate),
+        parsed,
+      };
+    })
     .filter((r) => r.ad);
 
   // Key includes source/medium so the same ad name under different sources doesn't merge.
@@ -2133,9 +2144,7 @@ function renderSourceMediumTable(analysis, prevAnalysis, overallCvr) {
 
 function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
   if (!adAnalysis.rows.length) {
-    container.innerHTML = `
-      <h3 class="utm-ad-heading">By Ad (utm_content)</h3>
-      <div class="utm-empty" style="padding:14px">No <code>utm_content</code> values found for this landing page in the selected range.</div>`;
+    container.innerHTML = `<div class="utm-empty" style="padding:14px">No <code>utm_content</code> values found for this landing page in the selected range.</div>`;
     return;
   }
 
@@ -2150,12 +2159,41 @@ function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
     .map(([combo, sessions]) => ({ combo, sessions }));
 
   const ALL = "__all__";
-  let active = combos[0].combo; // default to top combo
+  const DIM_KEYS = ["batch", "creator", "file", "angle"];
+  const DIM_LABELS = { batch: "Batch", creator: "Creator", file: "File", angle: "Angle" };
 
-  function render() {
-    const filtered = active === ALL
+  let active = combos[0].combo;
+  let activeDims = { batch: "", creator: "", file: "", angle: "" };
+
+  function rowsForCombo() {
+    return active === ALL
       ? adAnalysis.rows
       : adAnalysis.rows.filter((r) => `${r.source} / ${r.medium}` === active);
+  }
+
+  function uniqueValues(rows, dim) {
+    const counts = {};
+    for (const r of rows) {
+      const v = r.parsed[dim];
+      if (v) counts[v] = (counts[v] || 0) + r.sessions;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([value, sessions]) => ({ value, sessions }));
+  }
+
+  function applyDimFilters(rows) {
+    return rows.filter((r) => {
+      for (const dim of DIM_KEYS) {
+        if (activeDims[dim] && r.parsed[dim] !== activeDims[dim]) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    const afterCombo = rowsForCombo();
+    const filtered = applyDimFilters(afterCombo);
 
     const filteredSessions = filtered.reduce((s, r) => s + r.sessions, 0);
     const filteredOrders = filtered.reduce((s, r) => s + r.orders, 0);
@@ -2167,9 +2205,28 @@ function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
       ...combos.map((c, i) => `<button class="utm-src-pill ${active === c.combo ? "active" : ""}" data-combo-idx="${i}">${esc(c.combo)} <span class="utm-src-pill-count">${fmtNum(c.sessions)}</span></button>`),
     ].join("");
 
+    // Dimension dropdowns scoped to the current source/medium selection
+    const dimRowHtml = DIM_KEYS.map((dim) => {
+      const uniques = uniqueValues(afterCombo, dim);
+      if (!uniques.length) return "";
+      const opts = [
+        `<option value="">All (${uniques.length})</option>`,
+        ...uniques.map((u) => `<option value="${esc(u.value)}"${activeDims[dim] === u.value ? " selected" : ""}>${esc(u.value)} · ${fmtNum(u.sessions)}</option>`),
+      ].join("");
+      return `<label class="utm-dim-filter">
+        <span class="utm-dim-key">${DIM_LABELS[dim]}</span>
+        <select data-dim="${dim}">${opts}</select>
+      </label>`;
+    }).join("");
+
+    const activeDimCount = DIM_KEYS.filter((d) => activeDims[d]).length;
+    const clearBtn = activeDimCount
+      ? `<button class="utm-dim-clear" type="button">Clear ${activeDimCount} filter${activeDimCount === 1 ? "" : "s"}</button>`
+      : "";
+
     let tableHtml;
     if (!filtered.length) {
-      tableHtml = `<div class="utm-empty" style="padding:14px">No ads for this source/medium.</div>`;
+      tableHtml = `<div class="utm-empty" style="padding:14px">No ads match the current filters.</div>`;
     } else {
       tableHtml = `<div class="utm-table-wrap utm-table-wrap-tab"><table class="utm-table">
         <thead><tr>
@@ -2213,12 +2270,8 @@ function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
     }
 
     container.innerHTML = `
-      <div class="utm-ad-header">
-        <h3 class="utm-ad-heading">By Ad (utm_content)
-          <span class="utm-ad-sub">${filtered.length} ad${filtered.length === 1 ? "" : "s"} · ${fmtNum(filteredSessions)} sessions</span>
-        </h3>
-      </div>
       <div class="utm-ad-filter">${pillHtml}</div>
+      ${dimRowHtml ? `<div class="utm-dim-row">${dimRowHtml}${clearBtn}<span class="utm-dim-summary">${filtered.length} ad${filtered.length === 1 ? "" : "s"} · ${fmtNum(filteredSessions)} sessions</span></div>` : ""}
       ${tableHtml}
     `;
 
@@ -2226,9 +2279,26 @@ function initAdBreakdown(container, adAnalysis, prevAdAnalysis) {
       btn.addEventListener("click", () => {
         if (btn.dataset.combo === ALL) active = ALL;
         else active = combos[parseInt(btn.dataset.comboIdx, 10)].combo;
+        // Reset dim filters since their value-sets change with the combo
+        activeDims = { batch: "", creator: "", file: "", angle: "" };
         render();
       });
     });
+
+    container.querySelectorAll(".utm-dim-filter select").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        activeDims[sel.dataset.dim] = sel.value;
+        render();
+      });
+    });
+
+    const clear = container.querySelector(".utm-dim-clear");
+    if (clear) {
+      clear.addEventListener("click", () => {
+        activeDims = { batch: "", creator: "", file: "", angle: "" };
+        render();
+      });
+    }
   }
 
   render();
