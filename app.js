@@ -1833,7 +1833,83 @@ function decodeUtmContent(raw) {
   return { raw, decoded, parts, fbIds, creatives, placements, aspects, dates };
 }
 
+// Keys we surface prominently at the start of the decoded view, in this order.
+const PRIORITY_UTM_KEYS = ["batch", "creator", "file", "angle"];
+const PRIORITY_KEY_LABELS = { batch: "Batch", creator: "Creator", file: "File", angle: "Angle" };
+
+// Many ads use a "key1:val1_key2:val2_..." convention in utm_content.
+// Split on `_` to get segments, then on the first `:` to extract key/value.
+function parseStructuredContent(decoded) {
+  const segments = decoded.split("_");
+  const pairs = [];
+  const orphans = [];
+  for (const seg of segments) {
+    if (!seg) continue;
+    const i = seg.indexOf(":");
+    if (i > 0 && i < seg.length - 1) {
+      pairs.push({ key: seg.slice(0, i).toLowerCase(), value: seg.slice(i + 1) });
+    } else {
+      orphans.push(seg);
+    }
+  }
+  return { pairs, orphans };
+}
+
 function renderDecodedContent(raw) {
+  if (!raw || raw === "(not set)") return "";
+  let decoded = raw;
+  try { decoded = decodeURIComponent(raw); } catch (_) {}
+
+  const { pairs, orphans } = parseStructuredContent(decoded);
+
+  // Need at least 2 structured pairs to be confident this is key:value format.
+  if (pairs.length >= 2) {
+    return renderStructuredDecoded(pairs, orphans);
+  }
+  return renderLooseDecoded(raw);
+}
+
+function renderStructuredDecoded(pairs, orphans) {
+  const pairMap = {};
+  for (const p of pairs) {
+    if (pairMap[p.key] == null) pairMap[p.key] = p.value;
+  }
+
+  const priority = PRIORITY_UTM_KEYS
+    .filter((k) => pairMap[k] != null && pairMap[k] !== "")
+    .map((k) => ({ key: k, value: pairMap[k] }));
+
+  const otherPairs = pairs.filter((p) => !PRIORITY_UTM_KEYS.includes(p.key));
+
+  let html = `<div class="fb-decoded">`;
+
+  if (priority.length) {
+    html += `<div class="fb-decoded-priority">`;
+    for (const { key, value } of priority) {
+      html += `<span class="fb-kv">
+        <span class="fb-kv-key">${PRIORITY_KEY_LABELS[key] || key}</span>
+        <span class="fb-kv-value">${esc(value)}</span>
+      </span>`;
+    }
+    html += `</div>`;
+  }
+
+  if (otherPairs.length || orphans.length) {
+    html += `<div class="fb-decoded-extras">`;
+    for (const { key, value } of otherPairs) {
+      html += `<span class="fb-kv-mini"><span class="fb-kv-mini-key">${esc(key)}:</span><span class="fb-kv-mini-value">${esc(value)}</span></span>`;
+    }
+    for (const o of orphans) {
+      html += `<span class="fb-orphan">${esc(o)}</span>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function renderLooseDecoded(raw) {
   const info = decodeUtmContent(raw);
   if (!info) return "";
   const chipFor = (p) => {
