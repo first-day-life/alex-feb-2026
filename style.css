@@ -1011,8 +1011,9 @@ ul { list-style: none; }
 
 /* ── UTM Diagnosis modal ───────────────────────── */
 .utm-modal-content {
-  max-width: 720px !important;
-  max-height: 85vh;
+  max-width: min(1180px, 96vw) !important;
+  width: min(1180px, 96vw);
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
 }
@@ -1083,8 +1084,19 @@ ul { list-style: none; }
 }
 .utm-table-wrap {
   overflow-y: auto;
-  max-height: 50vh;
+  overflow-x: hidden;
+  max-height: 260px;
 }
+.utm-ad-section .utm-table-wrap {
+  max-height: 52vh;
+}
+.utm-table { table-layout: fixed; }
+.utm-table th:nth-child(1), .utm-table td:nth-child(1) { width: auto; }
+.utm-table th:nth-child(2), .utm-table td:nth-child(2),
+.utm-table th:nth-child(3), .utm-table td:nth-child(3) { width: 110px; }
+.utm-table th:nth-child(4), .utm-table td:nth-child(4) { width: 130px; }
+.utm-table th:nth-child(5), .utm-table td:nth-child(5) { width: 90px; }
+.utm-table td:first-child { word-break: break-word; overflow-wrap: anywhere; }
 .utm-ad-section {
   margin-top: 22px;
   padding-top: 16px;
@@ -1186,8 +1198,8 @@ ul { list-style: none; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.utm-source-cell { display: grid; gap: 4px; }
-.utm-source-name { font-weight: 500; }
+.utm-source-cell { display: grid; gap: 4px; min-width: 0; }
+.utm-source-name { font-weight: 500; word-break: break-word; overflow-wrap: anywhere; font-size: 12px; line-height: 1.35; }
 .utm-source-bar {
   height: 3px;
   background: var(--surface2);
