@@ -1354,20 +1354,37 @@ async function openUtmDiagnosis(page) {
       SHOW sessions, sessions_that_completed_checkout, conversion_rate
       WHERE landing_page_path = '${pagePath}'
     `;
+    const makeAdQuery = (since, until) => `
+      FROM sessions
+      SINCE ${since}
+      UNTIL ${until}
+      SHOW sessions, sessions_that_completed_checkout, conversion_rate,
+           utm_content
+      WHERE landing_page_path = '${pagePath}'
+      GROUP BY utm_content
+      ORDER BY sessions DESC
+    `;
 
     body.innerHTML = `<div class="utm-loading"><div class="utm-spinner"></div>Querying current &amp; previous period...</div>`;
 
     // Run current and previous period queries in parallel
-    const [sessionsResult, totalsResult, prevSessionsResult, prevTotalsResult] = await Promise.all([
+    const [
+      sessionsResult, totalsResult, adResult,
+      prevSessionsResult, prevTotalsResult, prevAdResult,
+    ] = await Promise.all([
       executeShopifyQL(makeSessionsQuery(startDate, endDate)),
       executeShopifyQL(makeTotalsQuery(startDate, endDate)),
+      executeShopifyQL(makeAdQuery(startDate, endDate)),
       executeShopifyQL(makeSessionsQuery(prevStartDate, prevEndDate)),
       executeShopifyQL(makeTotalsQuery(prevStartDate, prevEndDate)),
+      executeShopifyQL(makeAdQuery(prevStartDate, prevEndDate)),
     ]);
 
     const analysis = buildUtmAnalysis(sessionsResult, totalsResult);
     const prevAnalysis = buildUtmAnalysis(prevSessionsResult, prevTotalsResult);
-    renderUtmAnalysis(body, analysis, prevAnalysis, { startDate, endDate, prevStartDate, prevEndDate });
+    const adAnalysis = buildAdAnalysis(adResult);
+    const prevAdAnalysis = buildAdAnalysis(prevAdResult);
+    renderUtmAnalysis(body, analysis, prevAnalysis, adAnalysis, prevAdAnalysis, { startDate, endDate, prevStartDate, prevEndDate });
   } catch (err) {
     body.innerHTML = `<div class="utm-empty">
       <p>Error querying Shopify:</p>
@@ -1884,6 +1901,25 @@ function buildUtmAnalysis(sessionsResult, totalsResult) {
   return { rows, byKey, totalSessions, totalOrders };
 }
 
+// Group sessions for this landing page by utm_content (ad name).
+// Excludes blank utm_content (typically organic/direct) so the table focuses on ads.
+function buildAdAnalysis(sessionsResult) {
+  const rows = sessionsResult.rows
+    .map((r) => ({
+      ad: r.utm_content || "",
+      sessions: coerceNum(r.sessions),
+      orders: coerceNum(r.sessions_that_completed_checkout),
+      cvr: coerceNum(r.conversion_rate),
+    }))
+    .filter((r) => r.ad);
+
+  const byKey = {};
+  for (const row of rows) byKey[row.ad] = row;
+  const totalSessions = rows.reduce((s, r) => s + r.sessions, 0);
+  const totalOrders = rows.reduce((s, r) => s + r.orders, 0);
+  return { rows, byKey, totalSessions, totalOrders };
+}
+
 function fmtDelta(current, previous) {
   if (!previous) return `<span class="utm-delta utm-delta-new">NEW</span>`;
   const diff = current - previous;
@@ -1903,7 +1939,7 @@ function fmtDeltaPts(current, previous) {
   return `<span class="utm-delta ${cls}">${sign}${diff.toFixed(2)}pp</span>`;
 }
 
-function renderUtmAnalysis(container, analysis, prevAnalysis, dates) {
+function renderUtmAnalysis(container, analysis, prevAnalysis, adAnalysis, prevAdAnalysis, dates) {
   if (!analysis.rows.length) {
     container.innerHTML = `<div class="utm-empty">
       <p>No session data found for this landing page in the selected date range.</p>
@@ -1984,5 +2020,62 @@ function renderUtmAnalysis(container, analysis, prevAnalysis, dates) {
   }
 
   html += `</tbody></table></div>`;
+
+  html += renderAdBreakdownSection(adAnalysis, prevAdAnalysis);
+
   container.innerHTML = html;
+}
+
+function renderAdBreakdownSection(adAnalysis, prevAdAnalysis) {
+  if (!adAnalysis.rows.length) {
+    return `<div class="utm-ad-section">
+      <h3 class="utm-ad-heading">By Ad (utm_content)</h3>
+      <div class="utm-empty" style="padding:14px">No <code>utm_content</code> values found for this landing page in the selected range.</div>
+    </div>`;
+  }
+
+  const overallCvr = adAnalysis.totalSessions > 0
+    ? (adAnalysis.totalOrders / adAnalysis.totalSessions) * 100
+    : 0;
+  const maxSess = Math.max(...adAnalysis.rows.map((r) => r.sessions), 1);
+
+  let html = `<div class="utm-ad-section">
+    <h3 class="utm-ad-heading">By Ad (utm_content) <span class="utm-ad-sub">${adAnalysis.rows.length} ad${adAnalysis.rows.length === 1 ? "" : "s"} · ${fmtNum(adAnalysis.totalSessions)} sessions</span></h3>
+    <div class="utm-table-wrap"><table class="utm-table">
+      <thead><tr>
+        <th>Ad</th>
+        <th>Sessions</th>
+        <th>Checkouts</th>
+        <th>CVR</th>
+        <th>% of Ad Traffic</th>
+      </tr></thead><tbody>`;
+
+  for (const row of adAnalysis.rows) {
+    const prev = prevAdAnalysis.byKey[row.ad];
+    const cvr = row.sessions > 0 ? (row.orders / row.sessions) * 100 : 0;
+    const prevRowCvr = prev && prev.sessions > 0 ? (prev.orders / prev.sessions) * 100 : null;
+    const trafficPct = adAnalysis.totalSessions > 0
+      ? ((row.sessions / adAnalysis.totalSessions) * 100).toFixed(1)
+      : "0.0";
+    const barWidth = (row.sessions / maxSess) * 100;
+    const cvrClass = cvr >= overallCvr ? "utm-cvr-good" : "utm-cvr-bad";
+    const decoded = renderDecodedContent(row.ad);
+
+    html += `<tr>
+      <td>
+        <div class="utm-source-cell">
+          <span class="utm-source-name">${esc(row.ad)}</span>
+          <div class="utm-source-bar"><div class="utm-source-bar-fill" style="width:${barWidth}%"></div></div>
+          ${decoded}
+        </div>
+      </td>
+      <td class="utm-num">${fmtNum(row.sessions)} ${fmtDelta(row.sessions, prev ? prev.sessions : null)}</td>
+      <td class="utm-num">${fmtNum(row.orders)} ${fmtDelta(row.orders, prev ? prev.orders : null)}</td>
+      <td class="utm-num ${cvrClass}">${cvr.toFixed(2)}% ${fmtDeltaPts(cvr, prevRowCvr)}</td>
+      <td class="utm-num">${trafficPct}%</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table></div></div>`;
+  return html;
 }

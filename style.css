@@ -1085,6 +1085,25 @@ ul { list-style: none; }
   overflow-y: auto;
   max-height: 50vh;
 }
+.utm-ad-section {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.utm-ad-heading {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.utm-ad-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text2);
+}
 .utm-table {
   width: 100%;
   border-collapse: collapse;
