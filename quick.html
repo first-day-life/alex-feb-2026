@@ -67,7 +67,12 @@
 
     /* ── totals ── */
     .totals{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 18px}
-    .stat{border-radius:16px;padding:14px 16px}
+    .stat{
+      border-radius:4px;padding:14px 16px;
+      background:rgba(0,0,0,.38);
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:inset 0 1px 2px rgba(0,0,0,.4);
+    }
     .stat .v{font-size:21px;font-weight:750;letter-spacing:-.02em}
     .stat .l{font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-top:5px}
 
@@ -278,10 +283,10 @@
         `Avg per day · ${state.start} → ${state.end} · ${state.dayCount} days · ${state.pages.length} pages`;
 
       document.getElementById("totals").innerHTML = `
-        <div class="stat glass"><div class="v">${fmt1(state.totSessions/state.dayCount)}</div><div class="l">Avg sessions / day</div></div>
-        <div class="stat glass"><div class="v">${fmt1(state.totOrders/state.dayCount)}</div><div class="l">Avg orders / day</div></div>
-        <div class="stat glass"><div class="v">${pct(state.totSessions>0?state.totOrders/state.totSessions:0)}</div><div class="l">Overall CVR</div></div>
-        <div class="stat glass"><div class="v">${fmt(state.totSessions)}</div><div class="l">Total sessions · 30d</div></div>`;
+        <div class="stat"><div class="v">${fmt1(state.totSessions/state.dayCount)}</div><div class="l">Avg sessions / day</div></div>
+        <div class="stat"><div class="v">${fmt1(state.totOrders/state.dayCount)}</div><div class="l">Avg orders / day</div></div>
+        <div class="stat"><div class="v">${pct(state.totSessions>0?state.totOrders/state.totSessions:0)}</div><div class="l">Overall CVR</div></div>
+        <div class="stat"><div class="v">${fmt(state.totSessions)}</div><div class="l">Total sessions · 30d</div></div>`;
 
       const list=document.getElementById("list");
       if(!shown.length){ list.innerHTML='<li class="state glass">No data in the last 30 days.</li>'; return; }
