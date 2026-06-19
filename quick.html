@@ -243,7 +243,7 @@
     AND landing_page_path NOT CONTAINS 'order'
   GROUP BY landing_page_path WITH PERCENT_CHANGE, TOTALS
   TIMESERIES day
-  SINCE startOfDay(-10d) UNTIL endOfDay(-1d)
+  SINCE startOfDay(-30d) UNTIL endOfDay(-1d)
   ORDER BY day DESC, sessions DESC</pre>
 
       <div class="about-notes">
