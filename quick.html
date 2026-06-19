@@ -350,11 +350,11 @@
             <div class="rank">${i+1}</div>
             <div class="pmeta">
               <div class="pname">${escapeHtml(label(p.path))}<span class="go">↗</span></div>
-              <div class="ppath">${fmt(p.sessions)} sessions · ${fmt(p.orders)} orders · ${pct(p.cvr)} CVR · 30d total</div>
+              <div class="ppath">${pct(p.cvr)} CVR · share of 30-day Facebook traffic</div>
             </div>
             <div class="metrics">
-              <div class="metric"><div class="mv">${fmt1(p.avgSessions)}</div><div class="ml">Sess/day</div></div>
-              <div class="metric"><div class="mv orders">${fmt1(p.avgOrders)}</div><div class="ml">Orders/day</div></div>
+              <div class="metric"><div class="mv">${pct1(p.sShare)}</div><div class="ml">% Sessions</div></div>
+              <div class="metric"><div class="mv orders">${pct1(p.oShare)}</div><div class="ml">% Orders</div></div>
             </div>
           </a>
           <button class="info-btn" data-idx="${i}" aria-label="More stats">i</button>
