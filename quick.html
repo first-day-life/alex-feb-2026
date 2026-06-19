@@ -6,84 +6,193 @@
   <title>Top Landing Pages · Quick View</title>
   <style>
     :root{
-      --bg:#0f1117; --panel:#171a23; --panel2:#1e222e; --line:#2a2f3d;
-      --text:#e7eaf0; --text2:#9aa2b4; --accent:#6d8bff; --accent2:#3ad29f;
-      --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.25);
+      --accent:#7aa2ff;        /* readable on glass */
+      --accent-strong:#a8c0ff;
+      --green:#54e6b0;
+      --text:#f2f5fc;
+      --text2:#aab2c8;
+      --glass:rgba(255,255,255,.07);
+      --glass-hi:rgba(255,255,255,.12);
+      --line:rgba(255,255,255,.12);
+      --line-soft:rgba(255,255,255,.07);
     }
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{
-      margin:0; background:var(--bg); color:var(--text);
+      margin:0; color:var(--text);
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;
+      background:
+        radial-gradient(1100px 600px at 12% -8%, rgba(122,162,255,.22), transparent 60%),
+        radial-gradient(900px 600px at 100% 0%, rgba(84,230,176,.16), transparent 55%),
+        radial-gradient(800px 800px at 50% 120%, rgba(160,120,255,.18), transparent 60%),
+        #0a0c12;
+      background-attachment:fixed;
     }
-    .wrap{max-width:980px;margin:0 auto;padding:32px 20px 64px}
-    header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:8px}
-    h1{font-size:24px;font-weight:800;margin:0;letter-spacing:-.02em}
-    .sub{color:var(--text2);font-size:13px;margin:6px 0 0}
-    .controls{display:flex;gap:8px;align-items:center}
-    .controls label{font-size:12px;color:var(--text2)}
-    select{
-      background:var(--panel2);color:var(--text);border:1px solid var(--line);
-      border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer;
+    .wrap{max-width:1000px;margin:0 auto;padding:34px 20px 72px}
+
+    /* ── header ── */
+    header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px}
+    .title-row{display:flex;align-items:center;gap:10px}
+    h1{font-size:23px;font-weight:800;margin:0;letter-spacing:-.02em}
+    .sub{color:var(--text2);font-size:12.5px;margin:6px 0 0}
+    .controls{display:flex;gap:6px;align-items:center}
+
+    /* ── glass primitives ── */
+    .glass{
+      background:var(--glass);
+      backdrop-filter:blur(22px) saturate(150%);
+      -webkit-backdrop-filter:blur(22px) saturate(150%);
+      border:1px solid var(--line);
+      box-shadow:0 8px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.10);
     }
-    .totals{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 18px}
-    .stat{
-      background:var(--panel);border:1px solid var(--line);border-radius:12px;
-      padding:14px 18px;flex:1;min-width:140px;
+
+    /* ── small controls ── */
+    .seg{display:inline-flex;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+    .seg button{
+      background:transparent;color:var(--text2);border:0;border-right:1px solid var(--line-soft);
+      padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;transition:.12s;
     }
-    .stat .v{font-size:22px;font-weight:700;letter-spacing:-.02em}
-    .stat .l{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
-    ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-    li.row{
-      display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:14px;
-      background:var(--panel);border:1px solid var(--line);border-radius:12px;
-      padding:12px 16px;text-decoration:none;color:inherit;transition:.12s ease;
+    .seg button:last-child{border-right:0}
+    .seg button:hover{color:var(--text);background:var(--glass-hi)}
+    .seg button.on{background:rgba(122,162,255,.22);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+
+    .iconbtn{
+      width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+      background:var(--glass);border:1px solid var(--line);color:var(--accent-strong);
+      cursor:pointer;font-size:15px;font-weight:700;font-style:italic;font-family:Georgia,serif;
+      backdrop-filter:blur(14px);transition:.14s;
     }
-    li.row:hover{border-color:var(--accent);background:var(--panel2);transform:translateY(-1px);box-shadow:var(--shadow)}
-    .rank{font-size:13px;font-weight:700;color:var(--text2);text-align:center}
+    .iconbtn:hover{background:rgba(122,162,255,.22);color:#fff;transform:translateY(-1px)}
+
+    /* ── totals ── */
+    .totals{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 18px}
+    .stat{border-radius:16px;padding:14px 16px}
+    .stat .v{font-size:21px;font-weight:750;letter-spacing:-.02em}
+    .stat .l{font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-top:5px}
+
+    /* ── list ── */
+    ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+    li.row{position:relative;border-radius:16px;transition:.14s ease}
+    li.row:hover{transform:translateY(-1px);border-color:rgba(122,162,255,.5)}
+    a.row-link{
+      display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:14px;
+      padding:13px 54px 13px 16px;text-decoration:none;color:inherit;border-radius:16px;
+    }
+    .rank{font-size:13px;font-weight:800;color:var(--text2);text-align:center}
+    li.row:hover .rank{color:var(--accent-strong)}
     .pmeta{min-width:0}
-    .pname{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .ppath{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-    .metrics{display:flex;gap:22px;text-align:right}
-    .metric .mv{font-size:16px;font-weight:700;letter-spacing:-.01em}
-    .metric .ml{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
-    .metric .mv.orders{color:var(--accent2)}
-    .state{text-align:center;color:var(--text2);padding:60px 20px;font-size:14px}
-    .ext{font-size:11px;color:var(--text2);margin-top:2px}
-    a.row .pname::after{content:" ↗";color:var(--accent);font-weight:600;opacity:0;transition:.12s}
-    a.row:hover .pname::after{opacity:1}
-    @media(max-width:560px){
+    .pname{font-weight:650;font-size:14.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+    .pname .go{color:var(--accent);font-size:12px;opacity:0;transform:translateX(-3px);transition:.14s}
+    a.row-link:hover .pname .go{opacity:1;transform:translateX(0)}
+    .ppath{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+    .metrics{display:flex;gap:20px;text-align:right}
+    .metric .mv{font-size:16px;font-weight:750;letter-spacing:-.01em}
+    .metric .mv.orders{color:var(--green)}
+    .metric .ml{font-size:9.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+
+    .info-btn{
+      position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;
+      display:grid;place-items:center;border:1px solid var(--line);background:rgba(255,255,255,.05);
+      color:var(--text2);cursor:pointer;font:italic 700 13px Georgia,serif;transition:.14s;
+    }
+    .info-btn:hover{background:rgba(122,162,255,.28);color:#fff;border-color:transparent}
+
+    .state{text-align:center;color:var(--text2);padding:60px 20px;font-size:14px;border-radius:16px}
+
+    /* ── modal ── */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+    .modal.open{display:flex}
+    .modal-bg{position:absolute;inset:0;background:rgba(6,8,14,.55);backdrop-filter:blur(6px)}
+    .modal-card{position:relative;width:100%;max-width:440px;border-radius:22px;padding:22px 22px 8px;animation:pop .18s ease}
+    @keyframes pop{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+    .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px}
+    .modal-head h3{margin:0;font-size:16px;font-weight:750;color:#fff;word-break:break-word}
+    .modal-head .mh-sub{font-size:11.5px;color:var(--text2);margin-top:4px}
+    .modal-close{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text2);cursor:pointer;font-size:17px;line-height:1;transition:.14s}
+    .modal-close:hover{background:rgba(255,255,255,.14);color:#fff}
+    .share-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0 6px}
+    .share{border-radius:14px;padding:14px;border:1px solid var(--line-soft);background:rgba(255,255,255,.04)}
+    .share .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
+    .share .big.orders{color:var(--green)}
+    .share .cap{font-size:11px;color:var(--text2);margin-top:3px}
+    .bar{height:6px;border-radius:6px;background:rgba(255,255,255,.10);margin-top:10px;overflow:hidden}
+    .bar > i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-strong))}
+    .bar.orders > i{background:linear-gradient(90deg,#2fbf8f,var(--green))}
+    .rows{margin:12px 0 14px;border-top:1px solid var(--line-soft)}
+    .kv{display:flex;justify-content:space-between;padding:9px 2px;font-size:13px;border-bottom:1px solid var(--line-soft)}
+    .kv span:first-child{color:var(--text2)}
+    .kv span:last-child{font-weight:650}
+    .modal-foot{padding:6px 0 14px}
+    .open-link{display:inline-flex;align-items:center;gap:7px;color:var(--accent-strong);text-decoration:none;font-size:13px;font-weight:650}
+    .open-link:hover{color:#fff}
+
+    @media(max-width:600px){
+      .totals{grid-template-columns:repeat(2,1fr)}
       .metrics{gap:14px}
-      li.row{grid-template-columns:26px 1fr auto;gap:10px;padding:11px 13px}
+      a.row-link{grid-template-columns:24px 1fr auto;gap:10px;padding:12px 46px 12px 13px}
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="top">
-      <div>
-        <h1>Top Landing Pages</h1>
-        <p class="sub" id="subtitle">Loading last 30 days…</p>
+      <div class="title-row">
+        <div>
+          <h1>Top Landing Pages</h1>
+          <p class="sub" id="subtitle">Loading last 30 days…</p>
+        </div>
       </div>
       <div class="controls">
-        <label for="sortBy">Sort by</label>
-        <select id="sortBy">
-          <option value="sessions">Avg sessions/day</option>
-          <option value="orders">Avg orders/day</option>
-          <option value="cvr">Conversion rate</option>
-        </select>
-        <label for="topN">Show</label>
-        <select id="topN">
-          <option value="10">Top 10</option>
-          <option value="25" selected>Top 25</option>
-          <option value="50">Top 50</option>
-          <option value="9999">All</option>
-        </select>
+        <div class="seg" id="sortSeg">
+          <button data-sort="sessions" class="on">Sessions</button>
+          <button data-sort="orders">Orders</button>
+          <button data-sort="cvr">CVR</button>
+        </div>
+        <div class="seg" id="topSeg">
+          <button data-top="10">10</button>
+          <button data-top="25" class="on">25</button>
+          <button data-top="50">50</button>
+          <button data-top="9999">All</button>
+        </div>
       </div>
     </header>
 
     <div class="totals" id="totals"></div>
-    <ul class="list" id="list"><li class="state">Loading…</li></ul>
+    <ul class="list" id="list"><li class="state glass">Loading…</li></ul>
+  </div>
+
+  <!-- detail modal -->
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal-bg" data-close></div>
+    <div class="modal-card glass" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div>
+          <h3 id="m-name"></h3>
+          <div class="mh-sub" id="m-path"></div>
+        </div>
+        <button class="modal-close" data-close aria-label="Close">×</button>
+      </div>
+
+      <div class="share-grid">
+        <div class="share">
+          <div class="big" id="m-sshare"></div>
+          <div class="cap">of total sessions</div>
+          <div class="bar"><i id="m-sbar"></i></div>
+        </div>
+        <div class="share">
+          <div class="big orders" id="m-oshare"></div>
+          <div class="cap">of total orders</div>
+          <div class="bar orders"><i id="m-obar"></i></div>
+        </div>
+      </div>
+
+      <div class="rows" id="m-rows"></div>
+
+      <div class="modal-foot">
+        <a class="open-link" id="m-open" href="#" target="_blank" rel="noopener">Open page ↗</a>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -92,9 +201,10 @@
     const BASE_URL = "https://firstday.com";
     const WINDOW_DAYS = 30;
 
-    const fmt = (n) => Math.round(n).toLocaleString("en-US");
-    const fmt1 = (n) => (Math.round(n * 10) / 10).toLocaleString("en-US", {minimumFractionDigits:1, maximumFractionDigits:1});
-    const pct = (n) => (n * 100).toFixed(2) + "%";
+    const fmt  = (n) => Math.round(n).toLocaleString("en-US");
+    const fmt1 = (n) => (Math.round(n*10)/10).toLocaleString("en-US",{minimumFractionDigits:1,maximumFractionDigits:1});
+    const pct  = (n) => (n*100).toFixed(2) + "%";
+    const pct1 = (n) => (n*100).toFixed(1) + "%";
 
     function parseLine(line){
       const out=[]; let cur=""; let q=false;
@@ -108,101 +218,132 @@
     }
     const num = (s) => { const v=parseFloat(String(s||"").replace(/[%$,]/g,"")); return isNaN(v)?0:v; };
     const normPath = (p) => !p ? "/" : (p[0]==="/" ? p : "/"+p);
+    const escapeHtml = (s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const label = (p)=> p==="/" ? "Home (/)" : p;
 
-    let state = { pages: [], dayCount: 0, start: "", end: "" };
+    let state = { pages:[], dayCount:0, start:"", end:"", totSessions:0, totOrders:0 };
+    let sortBy = "sessions", topN = 25;
 
     async function load(){
       const url = SHEET_URL + (SHEET_URL.includes("?")?"&":"?") + "cb=" + Math.floor(Date.now()/60000);
-      const resp = await fetch(url, {cache:"no-store"});
+      const resp = await fetch(url,{cache:"no-store"});
       if(!resp.ok) throw new Error("HTTP "+resp.status);
-      const text = await resp.text();
-      const lines = text.split("\n").map(l=>l.trim()).filter(Boolean);
-      const headers = parseLine(lines[0]).map(h=>h.toLowerCase());
-      const ix = (name)=>headers.indexOf(name);
-      const iDay=ix("day"), iPath=ix("landing_page_path"), iSess=ix("sessions"),
-            iOrders=ix("sessions_that_completed_checkout"), iCvr=ix("conversion_rate");
+      const lines = (await resp.text()).split("\n").map(l=>l.trim()).filter(Boolean);
+      const H = parseLine(lines[0]).map(h=>h.toLowerCase());
+      const iDay=H.indexOf("day"), iPath=H.indexOf("landing_page_path"),
+            iSess=H.indexOf("sessions"), iOrders=H.indexOf("sessions_that_completed_checkout");
 
       const raw=[];
       for(let i=1;i<lines.length;i++){
         const c=parseLine(lines[i]);
-        const day=(c[iDay]||"").trim();
-        const path=(c[iPath]||"").trim();
+        const day=(c[iDay]||"").trim(), path=(c[iPath]||"").trim();
         if(!path || day.toLowerCase()==="day") continue;
         if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
         raw.push({day,path,sessions:num(c[iSess]),orders:num(c[iOrders])});
       }
 
-      // Last 30 days anchored to the most recent date present in the data
       const maxDay = raw.reduce((m,r)=> r.day>m ? r.day : m, "0000-00-00");
-      const end = new Date(maxDay+"T00:00:00");
-      const startD = new Date(end); startD.setDate(startD.getDate()-(WINDOW_DAYS-1));
-      const startStr = startD.toISOString().slice(0,10);
+      const end=new Date(maxDay+"T00:00:00"); const s=new Date(end); s.setDate(s.getDate()-(WINDOW_DAYS-1));
+      const startStr=s.toISOString().slice(0,10);
 
       const win = raw.filter(r=> r.day>=startStr && r.day<=maxDay);
-      const dayCount = new Set(win.map(r=>r.day)).size;
+      const dayCount=new Set(win.map(r=>r.day)).size || 1;
 
       const map=new Map();
-      for(const r of win){
-        let a=map.get(r.path);
-        if(!a){a={path:r.path,sessions:0,orders:0};map.set(r.path,a);}
-        a.sessions+=r.sessions; a.orders+=r.orders;
-      }
-      const div = dayCount || 1;
+      for(const r of win){ let a=map.get(r.path); if(!a){a={path:r.path,sessions:0,orders:0};map.set(r.path,a);} a.sessions+=r.sessions; a.orders+=r.orders; }
+
+      const totSessions=[...map.values()].reduce((t,a)=>t+a.sessions,0);
+      const totOrders=[...map.values()].reduce((t,a)=>t+a.orders,0);
+
       const pages=[...map.values()].map(a=>({
-        path:a.path,
-        url:BASE_URL+normPath(a.path),
+        path:a.path, url:BASE_URL+normPath(a.path),
         sessions:a.sessions, orders:a.orders,
-        avgSessions:a.sessions/div, avgOrders:a.orders/div,
-        cvr:a.sessions>0 ? a.orders/a.sessions : 0,
+        avgSessions:a.sessions/dayCount, avgOrders:a.orders/dayCount,
+        cvr:a.sessions>0?a.orders/a.sessions:0,
+        sShare:totSessions>0?a.sessions/totSessions:0,
+        oShare:totOrders>0?a.orders/totOrders:0,
       }));
 
-      state={pages, dayCount, start:startStr, end:maxDay};
+      state={pages,dayCount,start:startStr,end:maxDay,totSessions,totOrders};
       render();
     }
 
     function render(){
-      const sortBy=document.getElementById("sortBy").value;
-      const topN=parseInt(document.getElementById("topN").value,10);
-      const key=sortBy==="orders"?"avgOrders":sortBy==="cvr"?"cvr":"avgSessions";
+      const key = sortBy==="orders"?"avgOrders":sortBy==="cvr"?"cvr":"avgSessions";
       const sorted=[...state.pages].sort((a,b)=>b[key]-a[key]);
       const shown=sorted.slice(0,topN);
+      window._shown=shown;
 
       document.getElementById("subtitle").textContent =
-        `Avg per day · ${state.start} → ${state.end} (${state.dayCount} days) · ${state.pages.length} pages`;
+        `Avg per day · ${state.start} → ${state.end} · ${state.dayCount} days · ${state.pages.length} pages`;
 
-      const totSessions=state.pages.reduce((s,p)=>s+p.sessions,0);
-      const totOrders=state.pages.reduce((s,p)=>s+p.orders,0);
       document.getElementById("totals").innerHTML = `
-        <div class="stat"><div class="v">${fmt1(totSessions/(state.dayCount||1))}</div><div class="l">Avg sessions / day</div></div>
-        <div class="stat"><div class="v">${fmt1(totOrders/(state.dayCount||1))}</div><div class="l">Avg orders / day</div></div>
-        <div class="stat"><div class="v">${pct(totSessions>0?totOrders/totSessions:0)}</div><div class="l">Overall CVR</div></div>
-        <div class="stat"><div class="v">${fmt(totSessions)}</div><div class="l">Total sessions (30d)</div></div>
-      `;
+        <div class="stat glass"><div class="v">${fmt1(state.totSessions/state.dayCount)}</div><div class="l">Avg sessions / day</div></div>
+        <div class="stat glass"><div class="v">${fmt1(state.totOrders/state.dayCount)}</div><div class="l">Avg orders / day</div></div>
+        <div class="stat glass"><div class="v">${pct(state.totSessions>0?state.totOrders/state.totSessions:0)}</div><div class="l">Overall CVR</div></div>
+        <div class="stat glass"><div class="v">${fmt(state.totSessions)}</div><div class="l">Total sessions · 30d</div></div>`;
 
       const list=document.getElementById("list");
-      if(!shown.length){ list.innerHTML='<li class="state">No data in the last 30 days.</li>'; return; }
+      if(!shown.length){ list.innerHTML='<li class="state glass">No data in the last 30 days.</li>'; return; }
       list.innerHTML = shown.map((p,i)=>`
-        <a class="row" href="${p.url}" target="_blank" rel="noopener">
-          <div class="rank">${i+1}</div>
-          <div class="pmeta">
-            <div class="pname">${escapeHtml(p.path==="/"?"Home (/)":p.path)}</div>
-            <div class="ppath">${fmt(p.sessions)} sessions · ${fmt(p.orders)} orders · ${pct(p.cvr)} CVR (30d total)</div>
-          </div>
-          <div class="metrics">
-            <div class="metric"><div class="mv">${fmt1(p.avgSessions)}</div><div class="ml">Sess/day</div></div>
-            <div class="metric"><div class="mv orders">${fmt1(p.avgOrders)}</div><div class="ml">Orders/day</div></div>
-          </div>
-        </a>
-      `).join("");
+        <li class="row glass">
+          <a class="row-link" href="${p.url}" target="_blank" rel="noopener">
+            <div class="rank">${i+1}</div>
+            <div class="pmeta">
+              <div class="pname">${escapeHtml(label(p.path))}<span class="go">↗</span></div>
+              <div class="ppath">${fmt(p.sessions)} sessions · ${fmt(p.orders)} orders · ${pct(p.cvr)} CVR · 30d total</div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><div class="mv">${fmt1(p.avgSessions)}</div><div class="ml">Sess/day</div></div>
+              <div class="metric"><div class="mv orders">${fmt1(p.avgOrders)}</div><div class="ml">Orders/day</div></div>
+            </div>
+          </a>
+          <button class="info-btn" data-idx="${i}" aria-label="More stats">i</button>
+        </li>`).join("");
     }
 
-    function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    /* ── modal ── */
+    function openModal(idx){
+      const p=window._shown[idx]; if(!p) return;
+      document.getElementById("m-name").textContent = label(p.path);
+      document.getElementById("m-path").textContent = `Rank #${idx+1} · ${state.start} → ${state.end}`;
+      document.getElementById("m-sshare").textContent = pct1(p.sShare);
+      document.getElementById("m-oshare").textContent = pct1(p.oShare);
+      document.getElementById("m-sbar").style.width = Math.min(100,p.sShare*100).toFixed(1)+"%";
+      document.getElementById("m-obar").style.width = Math.min(100,p.oShare*100).toFixed(1)+"%";
+      document.getElementById("m-rows").innerHTML = `
+        <div class="kv"><span>Avg sessions / day</span><span>${fmt1(p.avgSessions)}</span></div>
+        <div class="kv"><span>Avg orders / day</span><span>${fmt1(p.avgOrders)}</span></div>
+        <div class="kv"><span>Conversion rate</span><span>${pct(p.cvr)}</span></div>
+        <div class="kv"><span>Total sessions (30d)</span><span>${fmt(p.sessions)}</span></div>
+        <div class="kv"><span>Total orders (30d)</span><span>${fmt(p.orders)}</span></div>`;
+      const a=document.getElementById("m-open"); a.href=p.url;
+      document.getElementById("modal").classList.add("open");
+    }
+    function closeModal(){ document.getElementById("modal").classList.remove("open"); }
 
-    document.getElementById("sortBy").addEventListener("change",render);
-    document.getElementById("topN").addEventListener("change",render);
+    document.getElementById("list").addEventListener("click",(e)=>{
+      const b=e.target.closest(".info-btn");
+      if(b){ e.preventDefault(); openModal(parseInt(b.dataset.idx,10)); }
+    });
+    document.getElementById("modal").addEventListener("click",(e)=>{ if(e.target.hasAttribute("data-close")) closeModal(); });
+    document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeModal(); });
+
+    document.getElementById("sortSeg").addEventListener("click",(e)=>{
+      const b=e.target.closest("button"); if(!b) return;
+      sortBy=b.dataset.sort;
+      [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));
+      render();
+    });
+    document.getElementById("topSeg").addEventListener("click",(e)=>{
+      const b=e.target.closest("button"); if(!b) return;
+      topN=parseInt(b.dataset.top,10);
+      [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));
+      render();
+    });
 
     load().catch(err=>{
-      document.getElementById("list").innerHTML=`<li class="state">Failed to load data: ${escapeHtml(err.message)}</li>`;
+      document.getElementById("list").innerHTML=`<li class="state glass">Failed to load data: ${escapeHtml(err.message)}</li>`;
     });
   </script>
 </body>
