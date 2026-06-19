@@ -132,6 +132,20 @@
     .open-link{display:inline-flex;align-items:center;gap:7px;color:var(--accent-strong);text-decoration:none;font-size:13px;font-weight:650}
     .open-link:hover{color:#fff}
 
+    /* ── about / query modal ── */
+    .about-card{max-width:560px;padding-bottom:18px}
+    .about-p{font-size:13px;line-height:1.6;color:var(--text2);margin:14px 0 0}
+    .about-p code,.query-block code{color:var(--accent-strong)}
+    .query-block{
+      background:rgba(0,0,0,.5);border:1px solid var(--line-soft);border-radius:10px;
+      padding:14px 16px;margin:14px 0;color:#cdd6ec;overflow-x:auto;
+      font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;
+    }
+    .about-notes{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+    .note{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--text2);line-height:1.5}
+    .note b{color:var(--text);font-weight:650}
+    .note .dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:6px}
+
     @media(max-width:600px){
       .totals{grid-template-columns:repeat(2,1fr)}
       .metrics{gap:14px}
@@ -144,9 +158,10 @@
     <header class="top">
       <div class="title-row">
         <div>
-          <h1>Top Landing Pages for </h1>
+          <h1>Top Landing Pages for Meta LPs in last 30 days</h1>
           <p class="sub" id="subtitle">Loading last 30 days…</p>
         </div>
+        <button class="iconbtn" id="aboutBtn" aria-label="About the query powering this data" title="How this data is built">i</button>
       </div>
       <div class="controls">
         <div class="seg" id="sortSeg">
@@ -196,6 +211,45 @@
 
       <div class="modal-foot">
         <a class="open-link" id="m-open" href="#" target="_blank" rel="noopener">Open page ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- about / query modal -->
+  <div class="modal" id="about-modal" aria-hidden="true">
+    <div class="modal-bg" data-close-about></div>
+    <div class="modal-card glass about-card" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div>
+          <h3>How this data is built</h3>
+          <div class="mh-sub">Source query powering every number on this page</div>
+        </div>
+        <button class="modal-close" data-close-about aria-label="Close">×</button>
+      </div>
+
+      <p class="about-p">
+        Numbers come from a <strong>ShopifyQL</strong> query on the <code>sessions</code> dataset,
+        published to a Google Sheet, then aggregated here by landing page over the
+        <strong>last 30 days</strong>. <code>orders</code> = <code>sessions_that_completed_checkout</code>.
+      </p>
+
+      <pre class="query-block">FROM sessions
+  SHOW sessions, conversion_rate, bounce_rate, added_to_cart_rate,
+    reached_checkout_rate, completed_checkout_rate, sessions_that_completed_checkout
+  WHERE utm_source CONTAINS 'facebook'
+    AND landing_page_path NOT CONTAINS 'checkout'
+    AND landing_page_path NOT CONTAINS 'retextion'
+    AND landing_page_path NOT CONTAINS 'account'
+    AND landing_page_path NOT CONTAINS 'order'
+  GROUP BY landing_page_path WITH PERCENT_CHANGE, TOTALS
+  TIMESERIES day
+  SINCE startOfDay(-10d) UNTIL endOfDay(-1d)
+  ORDER BY day DESC, sessions DESC</pre>
+
+      <div class="about-notes">
+        <div class="note"><span class="dot"></span><b>Facebook traffic only</b> — <code>utm_source CONTAINS 'facebook'</code>.</div>
+        <div class="note"><span class="dot"></span><b>Excludes</b> checkout, retention, account, and order paths.</div>
+        <div class="note"><span class="dot"></span><b>Grouped by landing page</b>, daily timeseries.</div>
       </div>
     </div>
   </div>
@@ -332,7 +386,14 @@
       if(b){ e.preventDefault(); openModal(parseInt(b.dataset.idx,10)); }
     });
     document.getElementById("modal").addEventListener("click",(e)=>{ if(e.target.hasAttribute("data-close")) closeModal(); });
-    document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeModal(); });
+
+    // about / query modal
+    const aboutModal=document.getElementById("about-modal");
+    const closeAbout=()=>aboutModal.classList.remove("open");
+    document.getElementById("aboutBtn").addEventListener("click",()=>aboutModal.classList.add("open"));
+    aboutModal.addEventListener("click",(e)=>{ if(e.target.hasAttribute("data-close-about")) closeAbout(); });
+
+    document.addEventListener("keydown",(e)=>{ if(e.key==="Escape"){ closeModal(); closeAbout(); } });
 
     document.getElementById("sortSeg").addEventListener("click",(e)=>{
       const b=e.target.closest("button"); if(!b) return;
