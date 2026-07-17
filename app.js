@@ -481,9 +481,18 @@ function renderList() {
   // Find max sessions for bar chart
   const maxSessions = Math.max(...filtered.map((p) => p.sessions), 1);
 
+  // Total sessions across the filtered set, for share-of-total calculations.
+  const totalSessions = filtered.reduce((s, p) => s + p.sessions, 0);
+
   listEl.innerHTML = "";
   lastFiltered = filtered;
+  let cumulativeSessions = 0;
   filtered.forEach((page, i) => {
+    // Share of total sessions for this row, and the running cumulative share
+    // including every row above it (in the current sort order).
+    cumulativeSessions += page.sessions;
+    const sharePct = totalSessions ? (page.sessions / totalSessions) * 100 : 0;
+    const cumulativePct = totalSessions ? (cumulativeSessions / totalSessions) * 100 : 0;
     const isSelected = compareMode
       ? selectedPages.some((s) => s.url === page.url)
       : activePage && activePage.url === page.url;
@@ -524,6 +533,14 @@ function renderList() {
         <div class="metric">
           <span class="metric-value">${fmtNum(page.sessionsCompleted)}</span>
           <span class="metric-label">Orders</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">${sharePct.toFixed(1)}%</span>
+          <span class="metric-label">% of Total</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">${cumulativePct.toFixed(1)}%</span>
+          <span class="metric-label">Cumulative %</span>
         </div>
       </div>
       <div class="page-card-bar">
